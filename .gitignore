@@ -1,3 +1,7 @@
+# Data files
+data/*
+!data/.gitkeep
+
 # Python-generated files
 __pycache__/
 *.py[oc]
