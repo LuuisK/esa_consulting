@@ -24,7 +24,7 @@ We want to answer the question:
 
 ## 👥 Consultants
 
-- Agnes Baumbach: <a.f.baumbach@gmail.com>
+- Agnes Baumbach: <a.baumbach@campus.lmu.de>
 - Milena Redlingshöfer: <m.redlingshoefer@campus.lmu.de>
 - Luis Karrlein: <luis.karrlein@campus.lmu.de>
 
