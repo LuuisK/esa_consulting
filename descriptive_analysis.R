@@ -8,9 +8,20 @@ library(dplyr)
 library(ggplot2)
 library(ggthemes)
 library(tidyr)
+library(tibble)
 
 # load dataset
 data <- read_dta("/Users/aginatore/Desktop/consulting/swisstransfer_f4cb6707-d70b-43a7-a248-4c3cfcd7a7ec/ESA1821_neu_SO.dta")
+
+# create a dataframe with variable names and labels
+labels <- sapply(data, function(x) attr(x, "label"))
+result <- tibble(
+  column_name = names(data),
+  label = labels
+)
+
+# save this dataframe as a csv
+write.csv(result, "all.csv", row.names = FALSE)
 
 ##########################################################################################
 
