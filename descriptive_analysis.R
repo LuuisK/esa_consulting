@@ -56,5 +56,6 @@ print(var_labels_df)
 
 ##########################################################################################
 
-# delete the redundant variables "fall", "", "", "", ""
-data <- dplyr::select(data, ! c("fall"))
+# delete the redundant variables "fall", "alk12mon", "", "", ""
+data <- dplyr::select(data, ! c("fall", "alk12mon", ))
+
