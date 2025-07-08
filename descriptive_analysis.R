@@ -13,17 +13,20 @@ library(tibble)
 library(corrplot)
 
 # load dataset
-data <- read_dta("/Users/aginatore/Desktop/consulting/swisstransfer_f4cb6707-d70b-43a7-a248-4c3cfcd7a7ec/ESA1821_neu_SO.dta")
+data_file = "data/ESA1821_neu_SO.dta"
+data <- read_dta(data_file)
 
 # create a dataframe with variable names and labels
 labels <- sapply(data, function(x) attr(x, "label"))
-result <- tibble(
+var_labels <- tibble(
   column_name = names(data),
   label = labels
 )
 
 # save this dataframe as a csv
-write.csv(result, "all.csv")
+write.csv(var_labels, "results/var_labels.csv")
+
+names(data)[110]
 
 # group variables
 idk_vars         <- names(data)[c(4, 5, 47, 108:109, 117, 156)]
@@ -47,7 +50,7 @@ var_groups <- list(
 
 # Group by group, extract variable names and labels and combine them into a data frame.
 # The dataframe contains group membership, variable names and Labels.
-var_labels_df <- do.call(rbind, lapply(names(var_groups), function(group) {
+grouped_vars <- do.call(rbind, lapply(names(var_groups), function(group) {
   vars <- var_groups[[group]]
   df <- data.frame(
     Group = group,
@@ -59,9 +62,9 @@ var_labels_df <- do.call(rbind, lapply(names(var_groups), function(group) {
 }))
 
 # Remove the rownames
-rownames(var_labels_df) <- NULL
+rownames(grouped_vars) <- NULL
 
-write.csv(var_labels_df, "groups.csv")
+write.csv(grouped_vars, "results/grouped_vars.csv")
 
 
 ##########################################################################################
@@ -88,11 +91,11 @@ names(na_only_cols[na_only_cols])
 
 # which(names(data) == "")
 
-# delete the redundant variables
-data <- dplyr::select(data, ! c("fall", "alkkat", "alk12", "alk12m", "audit_alt", "alk12mon", 
-                                "alk12tag", "alpo30", "alpo_tag", "alpo30gr", "alpo12j", "alpo_tax", 
-                                "alpo12gr", "alpogr", "alpoli", "alpokons", "Shi", "spice_12", 
-                                "amp_30", "fr12_amp1", "ls_alt", "sds", "fr12_spi1", "am_12"))
+# # delete the redundant variables
+# data <- dplyr::select(data, ! c("fall", "alkkat", "alk12", "alk12m", "audit_alt", "alk12mon", 
+#                                 "alk12tag", "alpo30", "alpo_tag", "alpo30gr", "alpo12j", "alpo_tax", 
+#                                 "alpo12gr", "alpogr", "alpoli", "alpokons", "Shi", "spice_12", 
+#                                 "amp_30", "fr12_amp1", "ls_alt", "sds", "fr12_spi1", "am_12"))
 
 # new groups without deleted Variables
 
