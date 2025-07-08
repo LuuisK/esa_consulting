@@ -3,26 +3,26 @@
 <!-- Emojis: 🗺️📝📊🧑‍⚕️👩‍⚕️👨‍⚕️🧪🧠🤝🎯👥🧑‍🏫🔗🍺🍻🍾🍷🍸🍹🚬🍃🌿🧪💉💊 -->
 <p align="center", size="1">🍺🍻🍾🍷🍸🍹🚬🍃🌿🧪💉💊</p>
 
-<br><hr><details open><summary><h2 style="display:inline-block">🤝 Project partner</h2></summary><ul>
+<br><hr><details open><summary><h2 style="display:inline-block">🤝 Project partner</h2></summary>
 
 Our project partner is Dr. Sally Olderbak (<olderbak@ift.de>), head of the research group for epidemiology and diagnostics at the Institut für Therapieforschung (IFT), which publishes the results of the German Epidemiological Survey of Substance Abuse (ESA).
 
-</ul></details>
+</details>
 
-<br><hr><details open><summary><h2 style="display:inline-block">📝 Data</h2></summary><ul>
+<br><hr><details open><summary><h2 style="display:inline-block">📝 Data</h2></summary>
 
 Our data comes from the Epidemiological Survey of Substance Abuse (ESA) of the years 2018 and 2021. It is anonymized and cannot be shared by us.
 
-</ul></details>
+</details>
 
-<br><hr><details open><summary><h2 style="display:inline-block">🎯 Research goal</h2></summary><ul>
+<br><hr><details open><summary><h2 style="display:inline-block">🎯 Research goal</h2></summary>
 
 We want to answer the question:
 > Can robust clustering techniques be used to reliably identify *consumer types* among users of substances with varying prevalence?
 
-</ul></details>
+</details>
 
-<br><hr><details open><summary><h2 style="display:inline-block">💻 How to use</h2></summary><ul>
+<br><hr><details open><summary><h2 style="display:inline-block">💻 How to use</h2></summary>
 
 To get started:
 
@@ -76,9 +76,9 @@ To get started:
 
     Check the generated output files in the output directory (if left unspecified the default is `results`).
 
-</ul></details>
+</details>
 
-<br><hr><details open><summary><h2 style="display:inline-block">👥 Consultants</h2></summary><ul>
+<br><hr><details open><summary><h2 style="display:inline-block">👥 Consultants</h2></summary>
 
 |                         |                                  |
 |-------------------------|----------------------------------|
@@ -86,7 +86,7 @@ To get started:
 | • Milena Redlingshöfer: | <m.redlingshoefer@campus.lmu.de> |
 | • Luis Karrlein:        | <luis.karrlein@campus.lmu.de>    |
 
-</ul></details>
+</details>
 
 <br><hr><details open><summary><h2 style="display:inline-block">🧑‍🏫 Supervisor</h2></summary>
 
@@ -107,6 +107,5 @@ To get started:
 
 </details>
 
-<br><hr><ul>
-[▲ $\ $ Back to the top](#consulting-project-on-substance-abuse-analysis)
-</ul>
+<br><hr>
+[▲ Back to the top](#consulting-project-on-substance-abuse-analysis)
