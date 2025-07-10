@@ -52,7 +52,7 @@ To get started:
     renv::restore()
     ```
 
-    <details><summary>A short explanation of `renv`</summary><ul>
+    <details><summary>A short explanation of renv</summary><ul>
 
     *Taken from* <https://www.rdocumentation.org/packages/renv/versions/1.1.4>*:*
 
@@ -80,7 +80,7 @@ To get started:
 
 <br><hr><details open><summary><h2 style="display:inline-block">👥 Consultants</h2></summary>
 
-|                         |                                  |
+| Names and emails        |                                  |
 |-------------------------|----------------------------------|
 | • Agnes Baumbach:       | <a.baumbach@campus.lmu.de>       |
 | • Milena Redlingshöfer: | <m.redlingshoefer@campus.lmu.de> |
@@ -96,14 +96,23 @@ To get started:
 
 <br><hr><details open><summary><h2 style="display:inline-block">🔗 Links</h2></summary>
 
-- Institut für Therapieforschung: <ift@ift.de>, <https://ift.de/>
-- Research group for epidemiology and diagnostics: <Epidemiologie-Diagnostik@ift.de>
-- Epidemiological Survey of Substance Abuse: <https://www.esa-survey.de/en/>
-- Survey designs: <https://www.esa-survey.de/en/study/instruments/>
-- ESA 2018: ...
-- ESA 2021: ...
-<!-- ESA 2021 short report?: https://di.aerzteblatt.de/int/archive/article/226333 -->
-- Project link: <https://github.com/LuuisK/esa_consulting>
+| General ||
+|-|-|
+| Institut für Therapieforschung | <ift@ift.de>, <https://ift.de/> |
+| Research group for epidemiology and diagnostics | <Epidemiologie-Diagnostik@ift.de> |
+| Epidemiological Survey of Substance Abuse | <https://www.esa-survey.de/en/> |
+| Survey designs | <https://www.esa-survey.de/en/study/instruments/> |
+| Project link: | <https://github.com/LuuisK/esa_consulting> |
+
+| ESA 2018 ||
+|-|-|
+| Methodology | <https://di.aerzteblatt.de/int/archive/article/209404> |
+| Short reports (Kurzberichte) | <https://www.esa-survey.de/ergebnisse/kurzberichte-1/#c5565> |
+
+| ESA 2021 ||
+|-|-|
+| Methodology | <https://di.aerzteblatt.de/int/archive/article/226333> |
+| Short reports (Kurzberichte) | <https://www.esa-survey.de/ergebnisse/kurzberichte-1/#c5575> |
 
 </details>
 
