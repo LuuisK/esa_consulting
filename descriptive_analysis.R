@@ -13,7 +13,7 @@ library(tibble)
 library(corrplot)
 
 # load dataset
-data_file = "data/ESA1821_neu_SO.dta"
+data_file = "data/raw/ESA1821_neu_SO.dta"
 data <- read_dta(data_file)
 
 # create a dataframe with variable names and labels
@@ -24,7 +24,7 @@ var_labels <- tibble(
 )
 
 # save this dataframe as a csv
-write.csv(var_labels, "results/var_labels.csv")
+write.csv(var_labels, "outputs/var_labels.csv")
 
 names(data)[110]
 
@@ -64,7 +64,7 @@ grouped_vars <- do.call(rbind, lapply(names(var_groups), function(group) {
 # Remove the rownames
 rownames(grouped_vars) <- NULL
 
-write.csv(grouped_vars, "results/grouped_vars.csv")
+write.csv(grouped_vars, "outputs/grouped_vars.csv")
 
 
 ##########################################################################################
