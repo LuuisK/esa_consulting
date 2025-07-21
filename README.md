@@ -70,7 +70,7 @@ To get started:
 
     Follow the instructions in the relevant scripts or notebooks.
 
-    If necessary, export the data from `Stata` as a `dta` file, and save it in the folder named `data`, otherwise specify the path to the data as is detailed in the script you want to run. For confidentiality reasons, this GitHub project does not include the data used for training (ESA 2018 and 2021).
+    If necessary, export the data from `Stata` as a `dta` file, and save it in the folder named `data/raw`, otherwise specify the path to the data as is detailed in the script you want to run. For confidentiality reasons, this GitHub project does not include the data used for training (ESA 2018 and 2021).
 
 4. **Explore the results**
 
