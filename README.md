@@ -40,9 +40,15 @@ To get started:
     cd esa_consulting
     ```
 
-2. **Install dependencies**
+2. **Install Python dependencies**
 
-    The Python installation and the used package versions are saved in the `pylock.toml` file. Installation ...
+    The right Python version and package versions are specified in `uv.lock` and `pyproject.toml`. They need to be installed, e.g. using the tool `uv`. The tool `uv` automatically creates a virtual environment with the necessary packages installed when a script or notebook is run. When running a notebook select the virtual environment, to run the script `<script>` run:
+
+    ```bash
+    uv run <script>`
+    ```
+
+3. **Install R dependencies**
 
     The right R version needs to be installed. It can be read out from the `"R"["Version"]` register in `renv.lock`. (If the tool `rig` is installed it automatically does this and activates the right installation.)
 
@@ -66,13 +72,21 @@ To get started:
 
     </ul></details><br>
 
-3. **Run the analysis**
+4. **Run the analysis**
 
     Follow the instructions in the relevant scripts or notebooks.
 
     If necessary, export the data from `Stata` as a `dta` file, and save it in the folder named `data/raw`, otherwise specify the path to the data as is detailed in the script you want to run. For confidentiality reasons, this GitHub project does not include the data used for training (ESA 2018 and 2021).
 
-4. **Explore the results**
+    To read in the data run the scripts for reading in and preprocessing:
+
+    ```bash
+    uv run reading_in.py && uv run preprocessing.py
+    ```
+
+    To run an analysis open and run the corresponding notebook (e.g. in Visual Studio Code with the Jupyter extension).
+
+5. **Explore the results**
 
     Check the generated output files in the output directory (if left unspecified the default is `results`).
 
