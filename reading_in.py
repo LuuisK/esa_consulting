@@ -12,7 +12,7 @@ logfile_path = os.path.join(data_folder, "codebook_output.txt")
 save_folder = "data/readin"
 outputs_folder = "outputs"
 
-allow_overwrite = True
+allow_overwrite = False
 
 
 def process_logfile(logfile_path: str) -> pd.DataFrame:
