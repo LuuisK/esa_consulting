@@ -45,7 +45,7 @@ To get started:
     The right Python version and package versions are specified in `uv.lock` and `pyproject.toml`. They need to be installed, e.g. using the tool `uv`. The tool `uv` automatically creates a virtual environment with the necessary packages installed when a script or notebook is run. When running a notebook select the virtual environment, to run the script `<script>` run:
 
     ```bash
-    uv run <script>`
+    uv run <script>
     ```
 
 3. **Install R dependencies**
