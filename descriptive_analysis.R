@@ -110,13 +110,13 @@ alcohol_data <- data[, alcohol_vars]
 cor_matrix <- cor(alcohol_data, method = "spearman", use = "pairwise.complete.obs")
 corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.6)
 title(main = "Correlation Matrix of  Alcohol Variables", line = 2, cex.main = 1.5)
-         
+  
 
 nicotine_data <- data[, nicotine_vars]
 cor_matrix <- cor(nicotine_data, method = "spearman", use = "pairwise.complete.obs")
 corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.6)
 title(main = "Correlation Matrix of  Nicotine Variables", line = 2, cex.main = 1.5)
-         
+       
 
 other_drugs_data <- data[, other_drugs_vars]
 cor_matrix <- cor(other_drugs_data, method = "spearman", use = "pairwise.complete.obs")
@@ -128,6 +128,23 @@ medication_data <- data[, medication_vars]
 cor_matrix <- cor(medication_data, method = "spearman", use = "pairwise.complete.obs")
 corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.6) 
 title(main = "Correlation Matrix of Medication Variables", line = 2, cex.main = 1.5)
+
+
+# Get indices where the absolute correlation is > 0.8 and not on the diagonal
+strong_corr_indices <- which(abs(cor_matrix) > 0.8 & abs(cor_matrix) < 1, arr.ind = TRUE)
+
+# Create a dataframe of those pairs
+strong_correlations <- data.frame(
+  var1 = rownames(cor_matrix)[strong_corr_indices[, 1]],
+  var2 = colnames(cor_matrix)[strong_corr_indices[, 2]],
+  correlation = cor_matrix[strong_corr_indices]
+)
+
+# Remove duplicate pairs (since correlation matrix is symmetric)
+strong_correlations <- strong_correlations[strong_correlations$var1 < strong_correlations$var2, ]
+
+# View result
+print(strong_correlations)
 
 
 # If two variables are very strongly correlated (correlation > 0.8 or < -0.8),
