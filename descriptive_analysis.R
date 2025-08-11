@@ -109,13 +109,13 @@ alcohol_data <- data[, alcohol_vars]
 cor_matrix <- cor(alcohol_data, method = "spearman", use = "pairwise.complete.obs")
 corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.6)
 title(main = "Correlation Matrix of  Alcohol Variables", line = 2, cex.main = 1.5)
-  
+
 
 nicotine_data <- data[, nicotine_vars]
 cor_matrix <- cor(nicotine_data, method = "spearman", use = "pairwise.complete.obs")
 corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.6)
 title(main = "Correlation Matrix of  Nicotine Variables", line = 2, cex.main = 1.5)
-       
+
 
 other_drugs_data <- data[, other_drugs_vars]
 cor_matrix <- cor(other_drugs_data, method = "spearman", use = "pairwise.complete.obs")
