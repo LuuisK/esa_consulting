@@ -1,6 +1,13 @@
 # Data files
-data/*
-!data/.gitkeep
+data/raw/*
+data/readin/*
+data/preprocessed/*
+outputs/*
+
+!data/raw/.gitkeep
+!data/readin/.gitkeep
+!data/preprocessed/.gitkeep
+!outputs/.gitkeep
 
 # Python-generated files
 __pycache__/
@@ -10,5 +17,12 @@ dist/
 wheels/
 *.egg-info
 
+# R- and RStudio-generated files
+.Rhistory
+.Rprofile
+.REnv
+.Rproj.user
+
 # Virtual environments
 .venv
+renv

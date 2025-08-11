@@ -1,50 +1,134 @@
 <h1 align="center">Consulting Project on Substance Abuse Analysis</h1>
 
 <!-- Emojis: 🗺️📝📊🧑‍⚕️👩‍⚕️👨‍⚕️🧪🧠🤝🎯👥🧑‍🏫🔗🍺🍻🍾🍷🍸🍹🚬🍃🌿🧪💉💊 -->
-<p align="center">🍺🍻🍾🍷🍸🍹🚬🍃🌿🧪💉💊</p>
+<p align="center", size="1">🍺🍻🍾🍷🍸🍹🚬🍃🌿🧪💉💊</p>
 
-## 🤝 Project partner
+<br><hr><details open><summary><h2 style="display:inline-block">🤝 Project partner</h2></summary>
 
 Our project partner is Dr. Sally Olderbak (<olderbak@ift.de>), head of the research group for epidemiology and diagnostics at the Institut für Therapieforschung (IFT), which publishes the results of the German Epidemiological Survey of Substance Abuse (ESA).
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+</details>
 
-## 📝 Data
+<br><hr><details open><summary><h2 style="display:inline-block">📝 Data</h2></summary>
 
 Our data comes from the Epidemiological Survey of Substance Abuse (ESA) of the years 2018 and 2021. It is anonymized and cannot be shared by us.
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+</details>
 
-## 🎯 Research goal
+<br><hr><details open><summary><h2 style="display:inline-block">🎯 Research goal</h2></summary>
 
 We want to answer the question:
 > Can robust clustering techniques be used to reliably identify *consumer types* among users of substances with varying prevalence?
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+</details>
 
-## 👥 Consultants
+<br><hr><details open><summary><h2 style="display:inline-block">💻 How to use</h2></summary>
 
-- Agnes Baumbach: <a.f.baumbach@gmail.com>
-- Milena Redlingshöfer: <m.redlingshoefer@campus.lmu.de>
-- Luis Karrlein: <luis.karrlein@campus.lmu.de>
+To get started:
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+1. **Download the repository**
 
-## 🧑‍🏫 Supervisor
+    The project is available at <https://github.com/LuuisK/esa_consulting.git>. It can be cloned, e.g. from the terminal using
+
+    ```bash
+    git clone https://github.com/LuuisK/esa_consulting.git
+    ```
+
+    Next you need to put your working directory into the project folder, e.g. from the terminal using
+
+    ```bash
+    cd esa_consulting
+    ```
+
+2. **Install Python dependencies**
+
+    The right Python version and package versions are specified in `uv.lock` and `pyproject.toml`. They need to be installed, e.g. using the tool `uv`. The tool `uv` automatically creates a virtual environment with the necessary packages installed when a script or notebook is run. When running a notebook select the virtual environment, to run the script `<script>` run:
+
+    ```bash
+    uv run <script>
+    ```
+
+3. **Install R dependencies**
+
+    The right R version needs to be installed. It can be read out from the `"R"["Version"]` register in `renv.lock`. (If the tool `rig` is installed it automatically does this and activates the right installation.)
+
+    Then the required R packages can be installed from `renv.lock` using the R package `renv` (installed from the R console using `install.packages("renv")`). In order to download the dependencies, in the R console run:
+
+    ```bash
+    renv::restore()
+    ```
+
+    <details><summary>A short explanation of renv</summary><ul>
+
+    *Taken from* <https://www.rdocumentation.org/packages/renv/versions/1.1.4>*:*
+
+    **Workflow**
+
+    Use `renv::init()` to initialize `renv` in a new or existing project. This will set up a project library, containing all the packages you’re currently using. The packages (and all the metadata needed to reinstall them) are recorded into a lockfile, `renv.lock`, and a `.Rprofile` ensures that the library is used every time you open that project.
+
+    As you continue to work on your project, you will install and upgrade packages, either using `install.packages()` and `update.packages()` or `renv::install()` and `renv::update()`. After you’ve confirmed your code works as expected, use `renv::snapshot()` to record the packages and their sources in the lockfile.
+
+    Later, if you need to share your code with someone else or run your code on a new machine, your collaborator (or you) can call `renv::restore()` to reinstall the specific package versions recorded in the lockfile.
+
+    </ul></details><br>
+
+4. **Run the analysis**
+
+    Follow the instructions in the relevant scripts or notebooks.
+
+    If necessary, export the data from `Stata` as a `dta` file, and save it in the folder named `data/raw`, otherwise specify the path to the data as is detailed in the script you want to run. For confidentiality reasons, this GitHub project does not include the data used for training (ESA 2018 and 2021).
+
+    To read in the data run the scripts for reading in and preprocessing:
+
+    ```bash
+    uv run reading_in.py && uv run preprocessing.py
+    ```
+
+    To run an analysis open and run the corresponding notebook (e.g. in Visual Studio Code with the Jupyter extension).
+
+5. **Explore the results**
+
+    Check the generated output files in the output directory (if left unspecified the default is `results`).
+
+</details>
+
+<br><hr><details open><summary><h2 style="display:inline-block">👥 Consultants</h2></summary>
+
+| Names and emails        |                                  |
+|-------------------------|----------------------------------|
+| • Agnes Baumbach:       | <a.baumbach@campus.lmu.de>       |
+| • Milena Redlingshöfer: | <m.redlingshoefer@campus.lmu.de> |
+| • Luis Karrlein:        | <luis.karrlein@campus.lmu.de>    |
+
+</details>
+
+<br><hr><details open><summary><h2 style="display:inline-block">🧑‍🏫 Supervisor</h2></summary>
 
 - Dr. Sabine Hoffmann
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+</details>
 
-## 🔗 Links
+<br><hr><details open><summary><h2 style="display:inline-block">🔗 Links</h2></summary>
 
-- Institut für Therapieforschung: <ift@ift.de>, <https://ift.de/>
-- Research group for epidemiology and diagnostics: <Epidemiologie-Diagnostik@ift.de>
-- Epidemiological Survey of Substance Abuse: <https://www.esa-survey.de/en/>
-- Survey designs: <https://www.esa-survey.de/en/study/instruments/>
-- ESA 2018: ...
-- ESA 2021: ...
-<!-- ESA 2021 short report?: https://di.aerzteblatt.de/int/archive/article/226333 -->
-- Project link: <https://github.com/LuuisK/esa_consulting>
+| General ||
+|-|-|
+| Institut für Therapieforschung | <ift@ift.de>, <https://ift.de/> |
+| Research group for epidemiology and diagnostics | <Epidemiologie-Diagnostik@ift.de> |
+| Epidemiological Survey of Substance Abuse | <https://www.esa-survey.de/en/> |
+| Survey designs | <https://www.esa-survey.de/en/study/instruments/> |
+| Project link: | <https://github.com/LuuisK/esa_consulting> |
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+| ESA 2018 ||
+|-|-|
+| Methodology | <https://di.aerzteblatt.de/int/archive/article/209404> |
+| Short reports (Kurzberichte) | <https://www.esa-survey.de/ergebnisse/kurzberichte-1/#c5565> |
+
+| ESA 2021 ||
+|-|-|
+| Methodology | <https://di.aerzteblatt.de/int/archive/article/226333> |
+| Short reports (Kurzberichte) | <https://www.esa-survey.de/ergebnisse/kurzberichte-1/#c5575> |
+
+</details>
+
+<br><hr>
+[▲ Back to the top](#consulting-project-on-substance-abuse-analysis)
