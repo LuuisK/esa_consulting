@@ -2,7 +2,6 @@
 ################## data preparation ######################################################
 ##########################################################################################
 
-
 #load necessary packages
 library(haven)
 library(dplyr)
@@ -155,6 +154,92 @@ print(strong_correlations)
 # We could check for number of data points, use Variables with more observations
 
 ##########################################################################################
+### Visualisierung der Verteilungen von:
 
-# does it make sense to summarize e.g. alcohol use in one variable?
-# data$alcohol <- wolf_data$var1 + wolf_data$var2 + wolf_data$var3
+# Frequenz-Menge-Index Alkoholkonsum 
+var_labels_de <- c(
+  wein30gr = "Frequenz-Menge-Index letzter Monat: Wein/Sekt",
+  mish30gr = "Frequenz-Menge-Index letzter Monat: Mischgetränke",
+  bier30gr = "Frequenz-Menge-Index letzter Monat: Bier",
+  spir30gr = "Frequenz-Menge-Index letzter Monat: Spirituosen",
+  alk30gr  = "Frequenz-Menge-Index letzter Monat: Alkohol (gesamt)"
+)
+
+data %>%
+  select(names(var_labels_de)) %>%
+  pivot_longer(cols = everything(), names_to = "Substance", values_to = "Value") %>%
+  filter(is.finite(Value)) %>%  
+  mutate(
+    Substance = factor(Substance, levels = names(var_labels_de), labels = var_labels_de)
+  ) %>%
+  ggplot(aes(x = Value)) +
+  geom_histogram(bins = 30, fill = "coral", color = "black") +
+  facet_wrap(~ Substance, scales = "free_x") +
+  labs(
+    title = "Verteilung der Frequenz-Menge-Index-Variablen",
+    x = "Gesamtkonsumintensität",
+    y = "Anzahl der Teilnehmenden mit diesem Wert"
+  ) +
+  theme_minimal()
+
+
+
+# 30-Tage Prävalenz Nikotinkonsum
+var_labels <- c(
+  typ       = "30-Tage Prävalenz Konsum Zigarette/Zigarre/Zigarillo/Pfeife",
+  typ_ezig  = "30-Tage Prävalenz E-Zigarette",
+  hnb30     = "30-Tage Prävalenz Tabakerhitzer",
+  typ_hnb   = "30-Tage Prävalenz Heat-Not-Burn",
+  typ_shish = "30-Tage Prävalenz Shisha"
+)
+
+data %>%
+  select(names(var_labels)) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") %>%
+  mutate(
+    Value = factor(Value, levels = c(0, 1), labels = c("Nein", "Ja")),
+    Variable = factor(Variable, levels = names(var_labels), labels = var_labels)
+  ) %>%
+  ggplot(aes(x = Value)) +
+  geom_bar(fill = "coral", color = "black") +
+  facet_wrap(~ Variable, scales = "free_x") +
+  labs(
+    x = NULL,
+    y = "Anzahl"
+  ) +
+  theme_minimal()
+
+
+
+# 12-Monats-Frequenz Drogenkonsum
+var_labels <- c(
+  fr12_ha1   = "12-Monats-Frequenz Cannabis Gesamt-SP",
+  fr12_ec1   = "12-Monats-Frequenz Ecstasy Gesamt-SP",
+  fr12_ls1   = "12-Monats-Frequenz LSD Gesamt-SP",
+  fr12_ao1   = "12-Monats-Frequenz andere Opiate Gesamt-SP",
+  fr12_ko1   = "12-Monats-Frequenz Kokain Gesamt-SP",
+  fr12_cr1   = "12-Monats-Frequenz Crack Gesamt-SP",
+  fr12_sc1   = "12-Monats-Frequenz Schnüffelstoffe Gesamt-SP",
+  fr12_pi1   = "12-Monats-Frequenz Pilze Gesamt-SP",
+  fr12_nps1  = "12-Monats-Frequenz Neue Psychoaktive Substanzen Gesamt-SP"
+)
+
+data %>%
+  select(names(var_labels)) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") %>%
+  filter(!is.na(Value)) %>% 
+  mutate(
+    Value = factor(Value,
+                   levels = 1:5,
+                   labels = c("Gar nicht", "<1×/Monat", "≥1×/Monat", "≥1×/Woche", "(Fast) täglich")),
+    Variable = factor(Variable, levels = names(var_labels), labels = var_labels)
+  ) %>%
+  ggplot(aes(x = Value)) +
+  geom_bar(fill = "coral", color = "black") +
+  facet_wrap(~ Variable, scales = "free_x") +
+  labs(
+    x = NULL,
+    y = "Anzahl"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
