@@ -124,7 +124,7 @@ print(strong_correlations)
 ##########################################################################################
 ################## 3. Factor Analysis ####################################################
 ##########################################################################################
-
+library(mice)
 
 alcohol_data <- data[, alcohol_vars]
 # convert into numeric form, so they can be used in factor analysis
@@ -205,8 +205,6 @@ alcohol_data_famd <- alcohol_data %>%
   mutate(across(all_of(numeric_vars), as.numeric)) %>%
   mutate(across(all_of(ordinal_vars), ~ factor(.x, ordered = TRUE)))
 
-str(alcohol_data)
-
 # Impute missing data for mixed variables
 alcohol_data_imputed <- imputeFAMD(alcohol_data_famd, ncp = 10)  # ncp = number of components to retain
 
@@ -216,14 +214,26 @@ famd_res <- FAMD(alcohol_data_imputed$completeObs, ncp = 10, graph = TRUE)
 # The direction of the arrow shows how the variable is related to the dimensions (principal components).
 # The length of the arrow shows how well that variable is represented by the first two dimensions (Dim 1 and Dim 2). 
 # Longer = better representation.
-# Dimensions: 
-# Dim 1 (26.16%): Explains about 26% of the variance in the dataset.
-# Dim 2 (13.03%): Explains about 13% of the variance.
-# Together, the first two axes explain ~39% of the variability in your data.
 # Interpretation:
 # Variables pointing in the same direction are positively correlated.
 # Variables pointing in opposite directions are negatively correlated.
 # Variables that are nearly orthogonal (90° apart) are uncorrelated.
+
+
+famd_res$eig[1:3, "eigenvalue"]
+# Variance explained for the first three dimensions
+famd_res$eig[1:3, "percentage of variance"]
+famd_res$eig[1:3, "cumulative percentage of variance"]
+eig.val <- get_eigenvalue(famd_res)
+head(eig.val)
+
+
+# Factor loadings of the numeric variables
+# loadings for the first three dimensions
+round(famd_res$var$coord[, 1:3], 3)
+# Factor loadings of the categorial variables
+# loadings for the first three dimensions
+round(famd_res$quali$coord[, 1:3], 3)
 
 fviz_screeplot(famd_res)
 
@@ -244,9 +254,6 @@ head(factor_scores)
 
 # visualize variables contribution
 fviz_famd_var(famd_res, repel = TRUE)
-# Die beiden Dimensionen (Dim1 = 26,16 %, Dim2 = 13 %) erklären zusammen etwa 39,2 % der Gesamtvarianz 
-# in den Daten. Dim1 ist die wichtigste Dimension, da sie den größten Anteil der Variation erklärt.
-#
 # Punkte im Plot:
 # Jeder Punkt entspricht einer Variablen
 # Rote Pfeile zeigen die Richtung, in der Variablen auf die Achsen wirken.
