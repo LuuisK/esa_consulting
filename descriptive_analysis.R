@@ -10,8 +10,6 @@ library(ggthemes)
 library(tidyr)
 library(tibble)
 library(corrplot)
-library(mice)
-library(psych)
 
 # load the dataset
 data_file = "data/raw/ESA1821_neu_SO.dta"
