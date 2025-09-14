@@ -17,14 +17,23 @@ library(psych)
 data_file = "data/raw/ESA1821_neu_SO.dta"
 data <- read_dta(data_file)
 
-# create a dataframe with variable names and labels
-# labels <- sapply(data, function(x) attr(x, "label"))
-# var_labels <- tibble(
-#  column_name = names(data),
-#  label = labels
-#)
-# save this dataframe as a csv
-# write.csv(var_labels, "outputs/var_labels.csv")
+
+# calculate proportion of missing values per variable
+missing_prop <- colMeans(is.na(data))
+
+# select variables with missingness >= 30%
+high_missingness <- missing_prop[missing_prop >= 0.3]
+
+# create data frame with counts and proportions
+missing_df <- data.frame(
+  Variable = names(high_missingness),
+  NAs = colSums(is.na(data))[names(high_missingness)],
+  Proportion = high_missingness
+)
+
+# sort by proportion descending
+missing_df <- missing_df[order(-missing_df$Proportion), ]
+
 
 
 # identify the columns where all values are NA
@@ -32,6 +41,7 @@ na_only_cols <- sapply(data, function(col) all(is.na(col)))
 
 # show the names of those columns
 names(na_only_cols[na_only_cols])
+
 
 # and remove them from the dataset
 data <- dplyr::select(data, ! c("fall", "alkkat", "alk12", "alk12m", "audit_alt", "alk12mon", 
@@ -59,24 +69,6 @@ var_groups <- list(
   Medication = medication_vars
 )
 
-# Group by group, extract variable names and labels and combine them into a data frame.
-# The dataframe contains group membership, variable names and Labels.
-grouped_vars <- do.call(rbind, lapply(names(var_groups), function(group) {
-  vars <- var_groups[[group]]
-  df <- data.frame(
-    Group = group,
-    Variable = vars,
-    Label = sapply(vars, function(var) attr(data[[var]], "label")),
-    stringsAsFactors = FALSE
-  )
-  return(df)
-}))
-
-# Remove the rownames
-rownames(grouped_vars) <- NULL
-write.csv(grouped_vars, "outputs/grouped_vars.csv")
-
-
 ##########################################################################################
 ################## 2. Correlations #######################################################
 ##########################################################################################
@@ -89,22 +81,22 @@ write.csv(grouped_vars, "outputs/grouped_vars.csv")
 # Create Correlation Matrices for groups of substances:
 alcohol_data <- data[, alcohol_vars]
 cor_matrix <- cor(alcohol_data, method = "spearman", use = "pairwise.complete.obs")
-corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.6)
+corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 1)
 title(main = "Correlation Matrix of  Alcohol Variables", line = 2, cex.main = 1.5)
 
 nicotine_data <- data[, nicotine_vars]
 cor_matrix <- cor(nicotine_data, method = "spearman", use = "pairwise.complete.obs")
-corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.6)
+corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 1)
 title(main = "Correlation Matrix of  Nicotine Variables", line = 2, cex.main = 1.5)
 
 other_drugs_data <- data[, other_drugs_vars]
 cor_matrix <- cor(other_drugs_data, method = "spearman", use = "pairwise.complete.obs")
-corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.6)
+corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.8)
 title(main = "Correlation Matrix of  Drug Variables", line = 2, cex.main = 1.5)
 
 medication_data <- data[, medication_vars]
 cor_matrix <- cor(medication_data, method = "spearman", use = "pairwise.complete.obs")
-corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.6) 
+corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.8) 
 title(main = "Correlation Matrix of Medication Variables", line = 2, cex.main = 1.5)
 
 # Get indices where the absolute correlation is > 0.8 and not on the diagonal
@@ -189,50 +181,98 @@ factor_scores <- fa_result$scores
 head(factor_scores)
 
 
-################## Funktion: Imputation → Faktorenanalyse → Poolen → Scores fürs Clustering
+##########################################################################################
+################## 3.1 Factor Analysis Mixed Data ########################################
+##########################################################################################
+library(FactoMineR)
+library(missMDA)  # for imputation
+library(factoextra)
+library(plotly)
 
-# var_groups is a named list of all groups (see 1. Data Preparation)
+# Numeric variables
+numeric_vars <- c(
+  "alk30", "spir30", "mish30", "wein30gr", "mish30gr", "bier30gr", 
+  "spir30gr", "alk30gr", "alk12j", "alk12gr", "alkgr", "alkjahr"
+)
 
-run_factor_pipeline <- function(data, var_groups, nfactors_per_group, m = 5, seed = 102) {
-  
-  set.seed(seed)
-  
-  # 1. Imputation
-  # Wir imputieren EINMAL über ALLE Variablen (damit Gruppen konsistent sind)
-  imputed <- mice(data[, unlist(var_groups)], m = m, method = "pmm", seed = seed)
-  
-  # 2. Für jede Gruppe Faktorenanalyse durchführen
-  results <- lapply(names(var_groups), function(group) {
-    vars <- var_groups[[group]]
-    
-    # Liste der Scores aus allen imputierten Datensätzen
-    group_scores_list <- list()
-    
-    for (i in 1:m) {
-      complete_data <- complete(imputed, action = i)
-      subset_data <- complete_data[, vars]
-      subset_data <- subset_data %>% mutate(across(everything(), as.numeric))
-      
-      fa_res <- fa(subset_data, nfactors = nfactors_per_group[[group]], rotate = "oblimin")
-      
-      group_scores_list[[i]] <- fa_res$scores
-    }
-    
-    # 3. Manuelles Poolen der Scores
-    pooled_scores <- Reduce("+", group_scores_list) / m
-    
-    # Dataframe mit Gruppennamen in den Spalten
-    colnames(pooled_scores) <- paste0(group, "_F", 1:ncol(pooled_scores))
-    
-    return(pooled_scores)
-  })
-  
-  # 4. Alles zusammenführen
-  final_scores <- do.call(cbind, results)
-  return(final_scores)
-}
+# Ordinal / categorical variables
+ordinal_vars <- c(
+  "alk30kat", "alkkons", "binge", "bierkons", "spirkons", "mishkons", 
+  "hazar", "harmf", "alkrisk", "dsm_al", "dsm_al_m", "alk_kat", 
+  "Miss_Abh", "vx210_2"
+)
+
+# Convert to appropriate type
+alcohol_data_famd <- alcohol_data %>%
+  mutate(across(all_of(numeric_vars), as.numeric)) %>%
+  mutate(across(all_of(ordinal_vars), ~ factor(.x, ordered = TRUE)))
+
+str(alcohol_data)
+
+# Impute missing data for mixed variables
+alcohol_data_imputed <- imputeFAMD(alcohol_data_famd, ncp = 10)  # ncp = number of components to retain
+
+# Run FAMD
+famd_res <- FAMD(alcohol_data_imputed$completeObs, ncp = 10, graph = TRUE)
+# Each arrow represents one numeric variable
+# The direction of the arrow shows how the variable is related to the dimensions (principal components).
+# The length of the arrow shows how well that variable is represented by the first two dimensions (Dim 1 and Dim 2). 
+# Longer = better representation.
+# Dimensions: 
+# Dim 1 (26.16%): Explains about 26% of the variance in the dataset.
+# Dim 2 (13.03%): Explains about 13% of the variance.
+# Together, the first two axes explain ~39% of the variability in your data.
+# Interpretation:
+# Variables pointing in the same direction are positively correlated.
+# Variables pointing in opposite directions are negatively correlated.
+# Variables that are nearly orthogonal (90° apart) are uncorrelated.
+
+fviz_screeplot(famd_res)
+
+# Wir nehmen die ersten Dimensionen (z. B. 1:5 oder 1:10, je nach Screeplot)
+X <- factor_scores[, 1:3]
+
+# K-means Clustering für verschiedene Clusterzahlen berechnen
+set.seed(102)  # Reproduzierbarkeit
+fviz_nbclust(X, kmeans, method = "wss") + 
+  ggtitle("Knee Plot - Bestimmung der Clusteranzahl (WSS)")
+
+
+plot(famd_res, choix = "quali")
+
+# Factor scores for clustering
+factor_scores <- famd_res$ind$coord
+head(factor_scores)
+
+# visualize variables contribution
+fviz_famd_var(famd_res, repel = TRUE)
+# Die beiden Dimensionen (Dim1 = 26,16 %, Dim2 = 13 %) erklären zusammen etwa 39,2 % der Gesamtvarianz 
+# in den Daten. Dim1 ist die wichtigste Dimension, da sie den größten Anteil der Variation erklärt.
+#
+# Punkte im Plot:
+# Jeder Punkt entspricht einer Variablen
+# Rote Pfeile zeigen die Richtung, in der Variablen auf die Achsen wirken.
+#
+# Nähe zwischen Variablen:
+# Variablen, die nah beieinander liegen, sind korreliert oder haben ein ähnliches Antwortmuster.
+# z. B. alkrisk, alkkons, alk30kat liegen eng zusammen, d.h. sie messen ähnliche Dimensionen des Alkoholkonsums/-risikos.
+# Variablen, die weit auseinanderliegen, unterscheiden sich stark.
+#
+# Distanz vom Ursprung (0,0):
+# Je weiter eine Variable vom Ursprung entfernt ist, desto stärker trägt sie zur Erklärung der Dimension bei.
+# z. B. alkrisk, alkkons, alk30kat und alk30gr liegen weit weg, d.h. sie sind besonders erklärungsstark.
+# Variablen wie dsm_al_m oder dsn_al_m liegen sehr nah am Ursprung, d.h. sie haben in dieser Projektion nur geringen Erklärungswert.
 
 
 
-run_factor_pipeline(data, var_groups, nfactors_per_group)
+# 3D-Scatterplot der Individuen
+fig <- plot_ly(
+  x = factor_scores[,1],   # Dim.1
+  y = factor_scores[,2],   # Dim.2
+  z = factor_scores[,3],   # Dim.3
+  type = "scatter3d",
+  mode = "markers",
+  marker = list(size = 4, color = factor_scores[,1], colorscale = "Viridis") # einfärben nach Dim.1
+)
 
+fig
