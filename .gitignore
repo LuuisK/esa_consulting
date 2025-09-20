@@ -18,6 +18,7 @@ wheels/
 *.egg-info
 
 # R- and RStudio-generated files
+.RData
 .Rhistory
 .Rprofile
 .REnv
