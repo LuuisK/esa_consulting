@@ -144,13 +144,6 @@ complete_data <- complete(imputed, action = 1)
 
 summary(complete_data)
 
-# NEU: 
-# 1) (falls nötig) installieren
-if (!requireNamespace("psych", quietly = TRUE)) install.packages("psych")
-
-# 2) NICHT vergessen zu laden ODER per Namespace aufrufen
-library(psych)
-
 # Faktorenanalyse
 # Bestimmen der Anzahl der Faktoren (z.B. Scree-Test)
 fa.parallel(complete_data, fa="fa", n.iter=100)
