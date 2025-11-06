@@ -3,20 +3,15 @@
 #' Uses factor analysis to find latent dimensions. Creates graphs visualizing
 #' the latent dimensions.
 
-
-
 # Load required packages and functions from funcs.R
-box::use(
-  mice,
-  missMDA[imputeFAMD],
-  FactoMineR[FAMD],
-  readr[read_rds],
-  dplyr[`%>%`, filter, pull, select, all_of],
-  dplyr[...],
-  tibble[...],
-  funcs = ./funcs[`%not_in%`]
-)
+library(mice)
+library(missMDA)
+library(FactoMineR)
+library(readr)
+library(dplyr)
+library(tibble)
 
+source("funcs.R")
 
 
 # Hardcoded paths, change to apply to new data
@@ -24,7 +19,6 @@ data_folder <- file.path("data", "preprocessed")
 outputs_folder <- "outputs"
 data_filename <- "esa_2018_2021.rds"
 vars_info_filename <- "vars_info.rds"
-
 
 
 # Load dataset and variable information
@@ -40,9 +34,11 @@ alcohol_data <- esa_2018_2021 %>% select(all_of(alcohol_vars))
 
 # Impute completely random NAs in dataset
 imputed_data <- imputeFAMD(
-  alcohol_data, ncp = 2, method = "Regularized", coeff.ridge = 1
+  alcohol_data,
+  ncp = 2,
+  method = "Regularized",
+  coeff.ridge = 1
 )
-
 
 
 # Conduct factor analysis for mixed data
