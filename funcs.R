@@ -55,9 +55,6 @@ save_data <- function(data, save_path) {
 }
 
 
-# TODO: maybe check_save_path
-# TODO: maybe second save function for other objects
-
 #' Creates a dataframe containing information about variables.
 create_vars_info <- function(data) {
   assert_data_frame(data)
@@ -236,7 +233,6 @@ preprocess_data <- function(
     ) %>%
       print
     vars_info <- vars_info %>% filter(name %not_in% all_na_vars)
-    # TODO:? vars_info["type"] = vars_info["type"].cat.remove_categories("all_na")
   }
 
   # Remove specified unimportant variables
