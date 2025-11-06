@@ -117,7 +117,7 @@ ordinal_vars = c(
   "fr12_ha1", "fr12_au1", "fr12_ec1", "fr12_ls1", "fr12_ao1", "fr12_ko1",
   "fr12_cr1", "fr12_sc1", "fr12_pi1", "fr12_nps1", "fr12_meth1",
 
-  "sds_c", "sds_k", "sds_a" # TODO: why were these on another line in python?
+  "sds_c", "sds_k", "sds_a"
 )
 
 nominal_vars <- (function(vars, drop_vars) vars[vars %not_in% drop_vars])(
@@ -166,15 +166,15 @@ data = output[[1]]
 vars_info = output[[2]]
 data <- data %>%
   mutate(
-    # # TODO:? Remove invalid value of akt_rau
+    # # Remove invalid value of akt_rau
     # akt_rau = replace(akt_rau, akt_rau %not_in% c(1, 2, 3), NA),
-    # # TODO:? Retain the 10 most common cities and join the others into one category
+    # # Retain the 10 most common cities and join the others into one category
     # stadt_bl = ifelse(
     #   stadt_bl %in% names(tail(sort(table(data$stadt_bl)), 10)),
     #   stadt_bl,
     #   "other"
     # ),
-    # # TODO:? Create discrete alter_ezig bins and make NA a category
+    # # Create discrete alter_ezig bins and make NA a category
     # alter_ezig = addNA(cut_number(alter_ezig, n = 4))
     # Reorder the levels of alkrisk
     alkrisk = fct_relevel(alkrisk, c("1", "2", "3", "6", "4", "5"))
@@ -182,15 +182,8 @@ data <- data %>%
 
 # # Impute data with mice
 # data_imputed <- mice(data, m = 5, maxit = 5, seed = 9876)
-# # TODO: use imputeFAMD instead?
-# # TODO: other imputation method?
-# # TODO: does this even run?
-# # TODO: choice of m and maxit?
-# # TODO: run on whole dataset or 2018 and 2021 separately?
-# # TODO: how do I save this object
 
 # Save data with missing values, imputed data, and information about variables
 save_data(data, data_save_path)
 # save_data(data_imputed, data_imputed_save_path)
 save_data(vars_info, vars_info_save_path)
-# TODO:? check_save_paths
