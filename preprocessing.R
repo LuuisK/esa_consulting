@@ -1,6 +1,4 @@
 #' Script for preprocessing.
-#'
-#' Reads in the dataset and preprocesses it.
 
 # Load required packages and functions from funcs.R
 library(haven)
@@ -21,8 +19,6 @@ save_folder <- file.path("data", "preprocessed")
 data_save_path <- file.path(save_folder, "esa_2018_2021.pkl")
 data_imputed_save_path <- file.path(save_folder, "esa_2018_2021_imputed.pkl")
 vars_info_save_path <- file.path(save_folder, "esa_vars_info.pkl")
-
-allow_overwrite = TRUE
 
 # Read in data
 data <- read_dta(data_path)
@@ -111,7 +107,7 @@ continuous_vars <- c(
 )
 
 # fmt: skip
-ordinal_vars = c(
+ordinal_vars <- c(
   "hne", "isced", "alk30kat", "alkkons", "alkkon", "binge", "alkrisk",
   "alk_kat", "akt_rau", "fag_sch", "psecdi_sch", "hnb_fag_sch", "fr12_he",
   "fr12_ha1", "fr12_au1", "fr12_ec1", "fr12_ls1", "fr12_ao1", "fr12_ko1",
@@ -156,34 +152,52 @@ vars_info <- sort_groups_vars_info(vars_info, groups_by_name)
 vars_info <- sort_types_vars_info(vars_info, types_by_name)
 
 # Preprocess data
-output = preprocess_data(
+output <- preprocess_data(
   data,
   vars_info,
   remove_all_na_vars = TRUE,
   drop_vars = c("fall")
 )
-data = output[[1]]
-vars_info = output[[2]]
+data <- output[["data"]]
+vars_info <- output[["vars_info"]]
 data <- data %>%
   mutate(
-    # # Remove invalid value of akt_rau
-    # akt_rau = replace(akt_rau, akt_rau %not_in% c(1, 2, 3), NA),
-    # # Retain the 10 most common cities and join the others into one category
-    # stadt_bl = ifelse(
-    #   stadt_bl %in% names(tail(sort(table(data$stadt_bl)), 10)),
-    #   stadt_bl,
-    #   "other"
-    # ),
-    # # Create discrete alter_ezig bins and make NA a category
-    # alter_ezig = addNA(cut_number(alter_ezig, n = 4))
+    # Remove invalid value of akt_rau that occurs only once
+    akt_rau = akt_rau %>%
+      fct_lump_min(min = 2, other_level = NA) %>%
+      fct_na_level_to_value,
+    # #' Retain the 10 most common cities and lump the others into one category
+    # #' (more than 10 are retained if there are ties)
+    # stadt_bl = stadt_bl %>%
+    #   fct_lump_n(n = 10, other_level = "other", ties.method = "min"),
+    # # Create discrete alter_ezig bins
+    # alter_ezig = alter_ezig %>% cut_number(n = 4),
     # Reorder the levels of alkrisk
     alkrisk = fct_relevel(alkrisk, c("1", "2", "3", "6", "4", "5"))
   )
 
-# # Impute data with mice
-# data_imputed <- mice(data, m = 5, maxit = 5, seed = 9876)
+#' Multiply impute data with mice
+#' (nnet.MaxNWts may need to be increased to train a bigger neural net)
+#'
+#' TODO: We need to reduce the data used for imputation,
+#' see: https://stefvanbuuren.name/fimd/sec-modelform.html
+data_imputed <- mice(
+  data,
+  m = 5,
+  maxit = 5,
+  seed = 9876,
+  #' Use polyreg instead of equivalent logreg for binary data because of
+  #' convergence issues due to the maxit argument of logreg,
+  #' see: https://stackoverflow.com/questions/58831710/
+  #' mice-glm-fit-algorithm-did-not-converge/60056364#60056364
+  defaultMethod = c("pmm", "polyreg", "polyreg", "polr"),
+  # #' Not removing collinearity can destroy some correlation,
+  # #' see: https://stefvanbuuren.name/fimd/sec-modelform.html
+  # remove.collinear = FALSE,
+  nnet.MaxNWts = 8000
+)
 
 # Save data with missing values, imputed data, and information about variables
 save_data(data, data_save_path)
-# save_data(data_imputed, data_imputed_save_path)
+save_data(data_imputed, data_imputed_save_path)
 save_data(vars_info, vars_info_save_path)
