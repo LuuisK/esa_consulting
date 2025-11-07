@@ -12,8 +12,20 @@ library(haven)
 
 
 #' "Not In" operator.
-`%not_in%` = Negate(`%in%`)
+`%not_in%` <- Negate(`%in%`)
 
+#' String concatenation operator
+#'
+#' See: https://stackoverflow.com/questions/6329962/
+#' split-code-over-multiple-lines-in-an-r-script/72757299#72757299
+`%+%` <- function(x, y) paste0(x, y)
+
+#' NULL replacement operator
+#'
+#' See: https://stackoverflow.com/questions/26561518/
+#' built-in-for-getting-list-element-or-default/26561737#26561737
+#' See: https://rlang.r-lib.org/reference/op-null-default.html
+`%or%` <- function(x, y) if (is.null(x)) y else x
 
 #' Empty a folder.
 #'
@@ -31,31 +43,33 @@ empty_folder <- function(folder) {
   file.remove(files)
 
   # Return silently
-  return(invisible(NULL))
+  invisible(NULL)
 }
 
 
-#' Save a data frame as an rds-file.
+#' Save an R object as an rds-file.
 #'
 #' Saves the passed data with a given file name and prints it with the label.
 save_data <- function(data, save_path) {
-  assert_data_frame(data)
   assert_string(save_path)
 
   # Save as an rds-file and print message
   ext <- file_ext(save_path)
-  assert_string(ext, pattern = "rds", fixed = NULL)
+  if (ext != "rds") {
+    stop("The save path needs an rds extension.")
+  }
   write_rds(data, file = save_path)
-  print(sprintf(
+  sprintf(
     "Saved %s as an %s file to %s.",
     deparse(substitute(v1)),
     ext,
     save_path
-  ))
+  ) %>%
+    print
 }
 
 
-#' Creates a dataframe containing information about variables.
+#' Create a dataframe containing information about variables.
 create_vars_info <- function(data) {
   assert_data_frame(data)
 
@@ -68,7 +82,7 @@ create_vars_info <- function(data) {
   value_labels <- lapply(data, function(x) {
     label_map <- attr(x, "labels")
     # Invert named vector
-    setNames(names(label_map), label_map)
+    setNames(as.list(names(label_map)), label_map)
   })
 
   # Create data frame with variable descriptions and value labels
@@ -78,7 +92,7 @@ create_vars_info <- function(data) {
     labels = unname(value_labels)
   )
 
-  return(vars_info)
+  vars_info
 }
 
 #' Sort variables into groups.
@@ -91,7 +105,7 @@ sort_groups_vars_info <- function(vars_info, groups_by_name) {
   assert_list(groups_by_name, names = "named")
 
   # Return a modified copy of the input
-  vars_info = data.frame(vars_info)
+  vars_info <- data.frame(vars_info)
 
   # Check that there are no multiply assigned variables
   all_grouped_vars <- unlist(groups_by_name, use.names = FALSE)
@@ -121,7 +135,7 @@ sort_groups_vars_info <- function(vars_info, groups_by_name) {
     vars_info[mask, "group"] <- group_name
   }
 
-  return(vars_info)
+  vars_info
 }
 
 #' Sort variables by type.
@@ -129,13 +143,14 @@ sort_groups_vars_info <- function(vars_info, groups_by_name) {
 #' Returns the input data frame of information about variables with an added
 #' sorting by variable type (all_na, categorical, continuous, or no type (NA)).
 #'
-#' The type of a variable is one of: all_na, categorical, continuous, or NA in case of no type assignment.
+#' The type of a variable is one of: all_na, categorical, continuous, or NA in
+#' case of no type assignment.
 sort_types_vars_info <- function(vars_info, types_by_name) {
   assert_data_frame(vars_info)
   assert_list(types_by_name, names = "named")
 
   # Return a modified copy of the input
-  vars_info = data.frame(vars_info)
+  vars_info <- data.frame(vars_info)
 
   # Check that there are no multiply assigned variables
   all_typed_vars <- unlist(types_by_name, use.names = FALSE)
@@ -165,7 +180,7 @@ sort_types_vars_info <- function(vars_info, types_by_name) {
     vars_info[mask, "type"] <- type_name
   }
 
-  return(vars_info)
+  vars_info
 }
 
 #' Convert a numeric column to a factor
@@ -180,9 +195,10 @@ convert_col_to_factor <- function(x, ordered = FALSE) {
   }
 }
 
-#' Preprocesses the data.
+#' Preprocess the data.
 #'
-#' - Converts factorial data to have categorical data type and saves the original levels in vars_info.
+#' - Converts factorial data to have categorical data type and saves the
+#'   original levels in vars_info.
 #' - Removes unimportant features.
 preprocess_data <- function(
   data,
@@ -199,7 +215,7 @@ preprocess_data <- function(
   data <- data.frame(data)
   vars_info <- data.frame(vars_info)
 
-  # Convert categorical variables to factors
+  # Convert categorical variables to factors, remove labelling from values
   data <- data %>%
     mutate(
       across(
@@ -209,26 +225,47 @@ preprocess_data <- function(
       across(
         vars_info %>% filter(type == "ordinal") %>% pull(name),
         \(x) convert_col_to_factor(x, ordered = TRUE)
+      ),
+      across(
+        vars_info %>% filter(type %in% c("continuous")) %>% pull(name),
+        \(x) zap_labels(x)
       )
     )
 
-  # # Recode binary to 0-1 in data and in vars_info["labels"]
-  # binary_vars: pd.Series[pd.StringDtype] = vars_info.loc[vars_info["type"] == "binary", "variable"]
-  # not_0_1 = [var for var in binary_vars if set(data[var].cat.categories) != set((0, 1))]
-  # for var in not_0_1:
-  #     old_cats = data[var].cat.categories
-  #     new_cats = [0, 1]
-  #     old_value_dict = vars_info.loc[vars_info["variable"] == var, "labels"].item()
-  #     new_value_dict = {x: old_value_dict.get(old_cats[x], old_cats[x]) for x in new_cats}
-  #     data[var] = data[var].cat.rename_categories(new_cats)
-  #     vars_info.loc[vars_info["variable"] == var, "labels"] = [new_value_dict]
+  # # Recode all binary variables to have values 0 and 1
+  # binary_vars <- vars_info %>% filter(type == "binary") %>% pull(name)
+  # not_0_1_vars <- data %>%
+  #   select(all_of(binary_vars)) %>%
+  #   select(where(\(x) x %>% levels %>% setequal(c("0", "1")) %>% !.)) %>%
+  #   names
+  # new_cats <- c("0", "1")
+  # get_new_value_labels <- function(var_name, value_labels) {
+  #   old_cats <- data[[var_name]] %>% levels
+  #   old_value_labels <- value_labels
+  #   lapply(setNames(seq_along(new_cats), new_cats), \(i) {
+  #     old_cat <- old_cats[i]
+  #     old_value_labels[[old_cat]] %or% old_cat
+  #   })
+  # }
+  # replace_value_labels <- function(var_name, value_label) {
+  #   if (var_name %in% not_0_1_vars) {
+  #     get_new_value_labels(var_name, value_label)
+  #   } else {
+  #     value_label
+  #   }
+  # }
+  # vars_info <- vars_info %>%
+  #   mutate(labels = purrr::map2(name, labels, replace_value_labels))
+  # data <- data %>%
+  #   mutate(across(all_of(not_0_1_vars), \(x) lvls_revalue(x, new_cats)))
 
   if (remove_all_na_vars) {
     # Remove features that are NA everywhere from the dataset and vars_info
     all_na_vars <- vars_info %>% filter(type == "all_na") %>% pull(name)
     data <- data %>% select(-all_of(all_na_vars))
     sprintf(
-      "Dropped the following variables from the dataset because they are missing everywhere: [%s]",
+      "Dropped the following variables from the dataset because they are " %+%
+        "missing everywhere: [%s]",
       toString(all_na_vars)
     ) %>%
       print
@@ -245,5 +282,5 @@ preprocess_data <- function(
     vars_info = vars_info
   )
 
-  return(output)
+  output
 }
