@@ -20,7 +20,7 @@ pd.options.mode.copy_on_write = True
 
 # Hardcoded paths, change to apply to new data
 data_folder = os.path.join("data", "raw")
-data_path = os.path.join(data_folder, "ESA1821_neu_SO.dta")
+data_path = os.path.join(data_folder, "ESA1821_neu_SO1.dta")
 
 save_folder = os.path.join("data", "preprocessed")
 data_save_path = os.path.join(save_folder, "esa_2018_2021.pkl")
