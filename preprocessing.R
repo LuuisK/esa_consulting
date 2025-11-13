@@ -1,4 +1,4 @@
-#' Script for preprocessing.
+# Script for preprocessing.
 
 # Load required packages and functions from funcs.R
 library(haven)
@@ -14,6 +14,7 @@ source("funcs.R")
 
 # Hardcoded paths, change to apply to new data
 data_path <- file.path("data", "raw", "ESA1821_neu_SO.dta")
+df_new <- read_dta("/Users/aginatore/Desktop/Consulting/esa_consulting/data/raw/ESA1821_neu_SO1.dta")
 
 save_folder <- file.path("data", "preprocessed")
 data_save_path <- file.path(save_folder, "esa_2018_2021.pkl")
@@ -31,14 +32,19 @@ vars_info <- create_vars_info(data)
 misc_vars <- c(
   "wicht", "wichtn", "audit_alt", "sds_c", "sds_k", "sds_a", "sds", "am_12"
 )
+# wicht, audit_alt, sds and am_12 nicht im neuen Datensatz
+
 
 general_vars <- c("fall", "zeit", "stadt_bl", "int_art")
+# wicht fehlt
 
 # fmt: skip
 socioecon_vars <- c(
   "alter", "ges", "hh", "hh18", "hh14", "allein", "staat", "Beruf", "erwerb",
   "fam", "schule", "hne", "isced", "westost_2", "hne_eq"
 )
+# hh18, isced, hne_eq nicht im neuen Datensatz
+
 
 # fmt: skip
 alcohol_vars <- c(
@@ -49,6 +55,7 @@ alcohol_vars <- c(
   "alk12tag", "alpo30", "alpo_tag", "alpo30gr", "alpo12j", "alpo_tax",
   "alpo12gr", "alpogr", "alk_kat", "alpoli", "alpokons", "Miss_Abh", "vx210_2"
 )
+# alk30, spir30, mish30, alk12j, alk12gr, alkgr, alkjahr Miss_Abh nicht im neuen Datensatz
 
 # fmt: skip
 nicotine_vars <- c(
@@ -56,6 +63,7 @@ nicotine_vars <- c(
   "alter_ezig", "psecdi_sch", "alter_hnb", "hnb30", "hnb_fag_sch", "typ_ezign",
   "typ_hnb", "typ_shish"
 )
+# "alter_ezig" "alter_hnb"  "typ_ezign" fehlen
 
 # fmt: skip
 other_drugs_vars <- c(
@@ -68,6 +76,8 @@ other_drugs_vars <- c(
   "dsm_au_m", "dsm_kc_m", "fr12_spi1", "Miss_Abh_ha", "Miss_Abh_kc",
   "Miss_Abh_am", "Miss_Abh_dro"
 )
+# andop_l, hasch_30, andop_30, schnu_30, opiat_30, amp_l, gamp_12 fehlen
+
 
 # fmt: skip
 medication_vars <- c(
@@ -80,6 +90,9 @@ medication_vars <- c(
   "app_arzt", "anab_arzt", "schmo_30", "schmno_30", "m_schmo", "m_schmno",
   "t_schmo", "t_schmno", "pomi", "rist_noa"
 )
+# Miss_Abh_schm, dsm_med, Miss_Abh_med, Miss_Abh_schl, Miss_Abh_ber, anr_arzt, app_arzt,      "anab_arzt"     "schmo_30"      "schmno_30"
+# m_schmo, m_schmno, t_schmo, t_schmno fehlen
+
 
 # Assign group names
 groups_by_name <- list(
