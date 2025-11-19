@@ -29,44 +29,43 @@ vars_info_save_path = os.path.join(save_folder, "esa_vars_info.pkl")
 
 allow_overwrite = True
 
-
 def get_var_groups() -> dict[str, list[str]]:
     """
     Specifies named groups of variables. Change to apply to new data.
     """
     # Define variable groups
-    misc_vars = ["wicht", "wichtn", "audit_alt", "sds_c", "sds_k", "sds_a", "sds", "am_12"]
+
+    misc_vars = ["wichtn", "sds_c", "sds_k", "sds_a"]
+    ## wicht, audit_alt, sds and am_12 not in the dataset anymore, therefore removed from the list
     general_vars = ["fall", "zeit", "stadt_bl", "int_art"]
     socioecon_vars = [
-        "alter", "ges", "hh", "hh18", "hh14", "allein", "staat", "Beruf", "erwerb", "fam", "schule", "hne", "isced",
-        "westost_2", "hne_eq",
-    ]  # fmt: skip
+        "alter", "ges", "hh", "hh14", "allein", "staat", "Beruf", "erwerb", "fam", "schule", "hne",
+        "westost_2"]  # fmt: skip
+    ## hh18, isced, hne_eq not in the dataset anymore, therefore removed from the list
     alcohol_vars = [
-        "alk30", "spir30", "mish30", "wein30gr", "mish30gr", "bier30gr", "spir30gr", "alk30gr", "alk12j", "alk12gr",
-        "alkgr", "alkjahr", "alk30kat", "alkkat", "alkkons", "alkkon", "binge", "bierkons", "spirkons", "mishkons",
+        "wein30gr", "mish30gr", "bier30gr", "spir30gr", "alk30gr", "alk30kat", "alkkat", "alkkons", "alkkon", "binge", "bierkons", "spirkons", "mishkons",
         "hazar", "harmf", "alkrisk", "alk12", "alk12m", "dsm_al", "dsm_al_m", "alk12mon", "alk12tag", "alpo30",
-        "alpo_tag", "alpo30gr", "alpo12j", "alpo_tax", "alpo12gr", "alpogr", "alk_kat", "alpoli", "alpokons",
-        "Miss_Abh", "vx210_2",
-    ]  # fmt: skip
+        "alpo_tag", "alpo30gr", "alpo12j", "alpo_tax", "alpo12gr", "alpogr", "alk_kat", "alpoli", "alpokons", "vx210_2"]  # fmt: skip
+    ## alk30, spir30, mish30, alk12j, alk12gr, alkgr, alkjahr, Miss_Abh not in the dataset anymore, therefore removed from the list
     nicotine_vars = [
-        "akt_rau", "typ", "Shi", "Anzahl", "fag_sch", "ezp30", "typ_ezig", "dsm_ta", "alter_ezig", "psecdi_sch",
-        "alter_hnb", "hnb30", "hnb_fag_sch", "typ_ezign", "typ_hnb", "typ_shish",
-    ]  # fmt: skip
+        "akt_rau", "typ", "Shi", "Anzahl", "fag_sch", "ezp30", "typ_ezig", "dsm_ta", "psecdi_sch",
+        "hnb30", "hnb_fag_sch", "typ_hnb", "typ_shish"]  # fmt: skip
+    ## "alter_ezig" "alter_hnb"  "typ_ezign" not in the dataset anymore, therefore removed from the list
     other_drugs_vars = [
-        "andop_l", "hasch_12", "ecsta_12", "lsd_12", "heroi_12", "andop_12", "kokai_12", "crack_12", "pilz_12",
-        "nps_12", "hasch_30", "andop_30", "schnu_30", "opiat_30", "spice_12", "amp_l", "amp_12", "meth_12", "gamp_12",
+        "hasch_12", "ecsta_12", "lsd_12", "heroi_12", "andop_12", "kokai_12", "crack_12", "pilz_12",
+        "nps_12", "spice_12", "amp_12", "meth_12",
         "amp_30", "fr12_he", "fr12_ha1", "fr12_au1", "fr12_ec1", "fr12_ls1", "fr12_ao1", "fr12_ko1", "fr12_cr1",
         "fr12_sc1", "fr12_pi1", "fr12_nps1", "fr12_amp1", "fr12_meth1", "ls_alt", "dsm_ha", "dsm_au", "dsm_kc",
-        "dsm_ha_m", "dsm_au_m", "dsm_kc_m", "fr12_spi1", "Miss_Abh_ha", "Miss_Abh_kc", "Miss_Abh_am", "Miss_Abh_dro",
-    ]  # fmt: skip
+        "dsm_ha_m", "dsm_au_m", "dsm_kc_m", "fr12_spi1", "Miss_Abh_ha", "Miss_Abh_kc", "Miss_Abh_am", "Miss_Abh_dro"]  # fmt: skip
+    ## andop_l, hasch_30, andop_30, schnu_30, opiat_30, amp_l, gamp_12 not in the dataset anymore, therefore removed from the list
     medication_vars = [
         "schm_30", "schl_30", "ber_30", "anr_30", "app_30", "depr_30", "neur_30", "anab_30", "m_schm", "m_schl",
         "m_ber", "m_anr", "m_app", "m_depr", "m_neur", "m_anab", "t_schm", "t_schl", "t_ber", "t_anr", "t_app",
-        "t_depr", "t_neur", "t_anab", "anr_12", "app_12", "anab_12", "dsm_schm", "dsm_schm_m", "Miss_Abh_schm",
-        "dsm_med", "Miss_Abh_med", "rist", "dsm_schl", "dsm_ber", "dsm_schl_m", "Miss_Abh_schl", "dsm_ber_m",
-        "Miss_Abh_ber", "anr_arzt", "app_arzt", "anab_arzt", "schmo_30", "schmno_30", "m_schmo", "m_schmno", "t_schmo",
-        "t_schmno", "pomi", "rist_noa",
-    ]  # fmt: skip
+        "t_depr", "t_neur", "t_anab", "anr_12", "app_12", "anab_12", "dsm_schm", "dsm_schm_m",
+        "rist", "dsm_schl", "dsm_ber", "dsm_schl_m", "dsm_ber_m",
+        "pomi", "rist_noa"]  # fmt: skip
+    ## Miss_Abh_schm, dsm_med, Miss_Abh_med, Miss_Abh_schl, Miss_Abh_ber, anr_arzt, app_arzt, anab_arzt, schmo_30, schmno_30,
+    ## m_schmo, m_schmno, t_schmo, t_schmno not in the dataset anymore, therefore removed from the list
 
     # Assign group names
     groups_by_name = {
