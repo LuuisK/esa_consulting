@@ -42,17 +42,31 @@ To get started:
 
 2. **Install Python dependencies**
 
-    The right Python version and package versions are specified in `uv.lock` and `pyproject.toml`. They need to be installed, e.g. using the tool `uv`. The tool `uv` automatically creates a virtual environment with the necessary packages installed when a script or notebook is run. When running a notebook select the virtual environment, to run the script `<script>` run:
+    The right Python version and package versions are specified in `uv.lock` and `pyproject.toml`. They need to be installed, e.g. using the tool `uv`. The tool `uv` automatically creates a virtual environment with the necessary packages installed when a script or notebook is run. To make uv install the dependencies without running a file use the following terminal command in the directory `esa_consulting`:
+
+    ```bash
+    uv sync
+    ```
+
+    Alternatively use `uv run` to run scripts, which automatically installs dependencies:
 
     ```bash
     uv run <script>
     ```
 
+    <details><summary>Adding or removing dependencies with uv</summary><ul>
+
+    When using a new dependency (a new package), it needs to be added with `uv add <package>`. It is then installed automatically when needed to run a file, or explicitly using `uv sync`.
+
+    Similarly, a dependency can be removed using `uv remove <package>`.
+
+    </ul></details><br>
+
 3. **Install R dependencies**
 
     The right R version needs to be installed. It can be read out from the `"R"["Version"]` register in `renv.lock`. (If the tool `rig` is installed it automatically does this and activates the right installation.)
 
-    Then the required R packages can be installed from `renv.lock` using the R package `renv` (installed from the R console using `install.packages("renv")`). In order to download the dependencies, in the R console run:
+    Then the required R packages can be installed from `renv.lock` using the R package `renv` (installed from the R console using `install.packages("renv")`). In order to download the dependencies, run the following command in the R console:
 
     ```bash
     renv::restore()
@@ -78,13 +92,17 @@ To get started:
 
     If necessary, export the data from `Stata` as a `dta` file, and save it in the folder named `data/raw`, otherwise specify the path to the data as is detailed in the script you want to run. For confidentiality reasons, this GitHub project does not include the data used for training (ESA 2018 and 2021).
 
-    To read in the data run the scripts for reading in and preprocessing:
+    The order of the scripts is as follows:
 
     ```bash
-    uv run reading_in.py && uv run preprocessing.py
+    preprocessing.R -> (plot_corr_assoc.R ->) dimensionality_reduction.R -> clustering.R
     ```
 
-    To run an analysis open and run the corresponding notebook (e.g. in Visual Studio Code with the Jupyter extension).
+    or:
+
+    ```bash
+    preprocessing.py -> (plot_corr_assoc.py ->) dimensionality_reduction.py -> clustering.py
+    ```
 
 5. **Explore the results**
 
