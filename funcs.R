@@ -49,19 +49,19 @@ empty_folder <- function(folder) {
 
 #' Save an R object as an rds-file.
 #'
-#' Saves the passed data with a given file name and prints it with the label.
+#' Saves the passed data with a given file name and prints a message.
 save_data <- function(data, save_path) {
   assert_string(save_path)
 
   # Save as an rds-file and print message
   ext <- file_ext(save_path)
   if (ext != "rds") {
-    stop("The save path needs an rds extension.")
+    stop("The save path must have an rds extension.")
   }
   write_rds(data, file = save_path)
   sprintf(
     "Saved %s as an %s file to %s.",
-    deparse(substitute(v1)),
+    deparse(substitute(data)),
     ext,
     save_path
   ) %>%
