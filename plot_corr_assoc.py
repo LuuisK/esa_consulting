@@ -5,6 +5,7 @@ Run scripts as interactive notebooks in the follwing order:
     preprocessing.py  ->  plot_corr_assoc.py  ->  dimensionality_reduction.py  ->  clustering.py
 """
 
+import itertools
 import typing
 from pathlib import Path
 from typing import Literal
@@ -53,7 +54,10 @@ def measure_corr_continuous(valuesi: pd.Series, valuesj: pd.Series, **kwargs) ->
         return np.nan, np.nan
 
     # Compute absolute Spearman correlation coefficient with p-value
-    stat, p_value = spearmanr(valuesi, valuesj, nan_policy="omit")
+    try:
+        stat, p_value = spearmanr(valuesi, valuesj, nan_policy="omit")
+    except ValueError:
+        stat, p_value = np.nan, np.nan
     stat = typing.cast(np.float64, stat)
     p_value = typing.cast(np.float64, p_value)
     abs_corr: np.float64 = np.abs(stat)
@@ -143,8 +147,8 @@ def create_corr_assoc_matrix(
     data = data.copy()
 
     # Initialize matrices
-    corr_assoc_matrix = pd.DataFrame(columns=data.columns, index=data.columns)
-    p_value_matrix = pd.DataFrame(columns=data.columns, index=data.columns)
+    corr_assoc_matrix = pd.DataFrame(np.eye(len(data.columns)), columns=data.columns, index=data.columns)
+    p_value_matrix = pd.DataFrame(np.eye(len(data.columns)), columns=data.columns, index=data.columns)
 
     # Recode to continuous (category codes go up from 0, -1 means pd.NA)
     treat_cat_as_continuous = [] if treat_cat_as_continuous is None else treat_cat_as_continuous
@@ -152,23 +156,22 @@ def create_corr_assoc_matrix(
     data[treat_cat_as_continuous] = data[treat_cat_as_continuous].apply(lambda col: col.cat.codes.replace(-1, np.nan))
 
     # Loop over pairs of variables
-    for vari in data.columns:
-        for varj in data.columns:
-            # Get variable types
-            which_continuous = ""
-            if not isinstance(data[vari].dtype, pd.CategoricalDtype):
-                which_continuous += "i"
-            if not isinstance(data[varj].dtype, pd.CategoricalDtype):
-                which_continuous += "j"
-            n_cont = len(which_continuous)
+    for vari, varj in itertools.combinations(data.columns, r=2):
+        # Get variable types
+        which_continuous = ""
+        if not isinstance(data[vari].dtype, pd.CategoricalDtype):
+            which_continuous += "i"
+        if not isinstance(data[varj].dtype, pd.CategoricalDtype):
+            which_continuous += "j"
+        n_cont = len(which_continuous)
 
-            # Calculate different association / correlation measures depending on variable types
-            corr_assoc_func = [measure_assoc_nominal, measure_assoc_mixed, measure_corr_continuous][n_cont]
-            corr_assoc, p_value = corr_assoc_func(data[vari], data[varj], which_continuous=which_continuous)
+        # Calculate different association / correlation measures depending on variable types
+        corr_assoc_func = [measure_assoc_nominal, measure_assoc_mixed, measure_corr_continuous][n_cont]
+        corr_assoc, p_value = corr_assoc_func(data[vari], data[varj], which_continuous=which_continuous)
 
-            # Fill in matrices
-            corr_assoc_matrix.loc[vari, varj] = corr_assoc
-            p_value_matrix.loc[vari, varj] = p_value
+        # Fill in matrices
+        corr_assoc_matrix.loc[vari, varj] = corr_assoc_matrix.loc[varj, vari] = corr_assoc
+        p_value_matrix.loc[vari, varj] = p_value_matrix.loc[varj, vari] = p_value
 
     return corr_assoc_matrix, p_value_matrix
 
