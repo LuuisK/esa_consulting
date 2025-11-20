@@ -327,7 +327,7 @@ if __name__ == "__main__":
     vars_info = sort_types_vars_info(vars_info, types_by_name)
 
     # Preprocess data
-    data, vars_info = preprocess_data(data, vars_info, remove_all_na_vars=True, drop_vars=["fall"])
+    data, vars_info = preprocess_data(data, vars_info, remove_all_na_vars=True, drop_vars=["fall", "fr12_he"])
     data = data.assign(
         **{
             # Remove invalid value of akt_rau that occurs only once
