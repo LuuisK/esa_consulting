@@ -1,13 +1,9 @@
-"""
-Script for plotting the correlation / association.
+"""Module with functions for plot_corr_assoc.ipynb"""
 
-Run scripts as interactive notebooks in the follwing order:
-    preprocessing.py  ->  plot_corr_assoc.py  ->  dimensionality_reduction.py  ->  clustering.py
-"""
+from __future__ import annotations
 
 import itertools
 import typing
-from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -16,7 +12,7 @@ import plotnine as p9
 from scipy.stats import kruskal, spearmanr
 from scipy.stats.contingency import association, chi2_contingency
 
-from utils import check_save_path, load_data
+from utils.utils import theme_ggplot, turn_cats_to_continuous
 
 pd.options.mode.copy_on_write = True
 
@@ -70,9 +66,7 @@ def measure_corr_continuous(valuesi: pd.Series, valuesj: pd.Series, **kwargs) ->
 
 
 def measure_assoc_mixed(
-    valuesi: pd.Series,
-    valuesj: pd.Series,
-    which_continuous: Literal["i", "j"] | None,
+    valuesi: pd.Series, valuesj: pd.Series, which_continuous: Literal["i", "j"] | None
 ) -> tuple[float, float]:
     """
     Measures the association of a nominal and a continuous variable.
@@ -127,8 +121,7 @@ def measure_assoc_nominal(valuesi: pd.Series, valuesj: pd.Series, **kwargs) -> t
 
 
 def create_corr_assoc_matrix(
-    data: pd.DataFrame,
-    treat_cat_as_continuous: list[str] | None = None,
+    data: pd.DataFrame, treat_cat_as_continuous: list[str] | None = None
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Creates a matrix containing values that measure the correlation or association between variables.
@@ -151,9 +144,7 @@ def create_corr_assoc_matrix(
     p_value_matrix = pd.DataFrame(np.eye(len(data.columns)), columns=data.columns, index=data.columns)
 
     # Recode to continuous (category codes go up from 0, -1 means pd.NA)
-    treat_cat_as_continuous = [] if treat_cat_as_continuous is None else treat_cat_as_continuous
-    treat_cat_as_continuous = [var for var in treat_cat_as_continuous if var in data.columns]
-    data[treat_cat_as_continuous] = data[treat_cat_as_continuous].apply(lambda col: col.cat.codes.replace(-1, np.nan))
+    data = turn_cats_to_continuous(data, treat_cat_as_continuous)
 
     # Loop over pairs of variables
     for vari, varj in itertools.combinations(data.columns, r=2):
@@ -252,46 +243,9 @@ def plot_corr_assoc_matrix(data: pd.DataFrame, treat_cat_as_continuous: list[str
         + p9.coord_fixed()
         + p9.geom_point(p9.aes(x="vari", y="varj", shape="significant"), inherit_aes=False)
         + p9.scale_shape_manual(
-            values={"False": "x"},
-            name=" ",
-            labels={"False": f"no significant\n{corr_assoc_str}"},
-            na_translate=False,
+            values={"False": "x"}, name=" ", labels={"False": f"no significant\n{corr_assoc_str}"}, na_translate=False
         )
-        + p9.theme_538()
+        + theme_ggplot
         + p9.theme(axis_text_x=p9.element_text(rotation="vertical"))
     )
-
     return corr_assoc_plot
-
-
-if __name__ == "__main__":
-    # Hardcoded paths, change to apply to new data
-    data_path = Path("data/preprocessed/esa_2018_2021.pkl")
-    vars_info_path = Path("data/preprocessed/esa_vars_info.pkl")
-
-    image_folder = "outputs/corr_assoc_plots"
-    plot_save_name_template = "corr_assoc_plot_{group}.png"
-
-    allow_overwrite = True
-
-    # Read in data
-    data: pd.DataFrame = load_data(data_path)
-    vars_info: pd.DataFrame = load_data(vars_info_path)
-
-    # Get variable groups
-    var_groups = {
-        group: vars_info.loc[vars_info["group"] == group, "name"] for group in vars_info["group"].cat.categories
-    }
-    var_groups = typing.cast(dict[str, list[str]], var_groups)
-
-    # Visualize correlation matrices
-    treat_cat_as_continuous: list[str] = vars_info.loc[vars_info["type"].isin(["binary", "ordinal"]), "name"].tolist()
-
-    for group, vars in var_groups.items():
-        print(f"{group=}, {[var for var in vars]}")
-        plot = plot_corr_assoc_matrix(data[vars], treat_cat_as_continuous)
-        plot.show()
-        plot_save_path = Path(image_folder, plot_save_name_template.format(group=group))
-        check_save_path(plot_save_path, allow_overwrite=allow_overwrite)
-        plot.save(plot_save_path)
-        print(f"Saved {group} correlation / association plot as PNG to {plot_save_path}.")

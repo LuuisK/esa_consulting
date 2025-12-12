@@ -4,7 +4,11 @@ Script for defining helpful functions.
 
 import pickle
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
+
+import numpy as np
+import pandas as pd
+import plotnine as p9
 
 
 def check_save_path(save_path: str | Path, allow_overwrite: bool = True, create_folder: bool = True) -> None:
@@ -20,7 +24,7 @@ def check_save_path(save_path: str | Path, allow_overwrite: bool = True, create_
         save_path.parent.mkdir(exist_ok=True)
 
 
-def save_data(data, save_path: str | Path, label: str = "object") -> None:
+def save_data(data: Any, save_path: str | Path, label: str = "object") -> None:
     """
     Saves a Python object as a Pickle file.
 
@@ -50,3 +54,22 @@ def load_data(file_path: str | Path) -> Any:
     with open(file_path, "rb") as file:
         data = pickle.load(file)
     return data
+
+
+def turn_cats_to_continuous(data: pd.DataFrame, treat_cat_as_continuous: Iterable[str] | None) -> pd.DataFrame:
+    """
+    Turn specified variables of data into continuous ones.
+    
+    Used for categorical (pandas.CategoricalDType) variables that should be treated as continuous.
+    """
+    # Return a modified copy of the input
+    data = data.copy()
+
+    treat_cat_as_continuous = [] if treat_cat_as_continuous is None else list(treat_cat_as_continuous)
+    treat_cat_as_continuous = [var for var in treat_cat_as_continuous if var in data.columns]
+    data[treat_cat_as_continuous] = data[treat_cat_as_continuous].apply(lambda col: col.cat.codes.replace(-1, np.nan))
+    return data
+
+
+# Create ggplot theme
+theme_ggplot: p9.theme = p9.theme_minimal()
