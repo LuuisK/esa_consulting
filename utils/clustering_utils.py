@@ -31,19 +31,12 @@ projection_list = [*deterministic_projection_list, *random_projection_list]
 str_to_projection: dict[str, type[Projection]] = {x.__name__.lower(): x for x in projection_list}
 
 
-def plot_data_2d(
-    data: pd.DataFrame,
-    cluster_labels: pd.Series[pd.CategoricalDtype] | None = None,
-    projection_method: str | type[Projection] | None = None,
-    **kwargs,
-):
-    """
-    Plots projected data in 2d.
+def reduce_dimen_2d(data: pd.DataFrame, projection_method: str | type[Projection] | None = None, **kwargs):
+    """Projects data to 2d.
 
     The data is projected with the method specified as projection_method, if left unspecified the first two coordinates
-    of the data are taken as x and y. Valid projection methods are Isomap, LocallyLinearEmbedding, MDS,
-    SpectralEmbedding, and TSNE. The points are colored based on cluster_labels. Certain projection methods require
-    random numbers, otherwise a given RNG is ignored.
+    of the data are taken as the 2d representation. Valid projection methods are Isomap, LocallyLinearEmbedding, MDS,
+    SpectralEmbedding, and TSNE. Certain projection methods require random numbers, otherwise a given RNG is ignored.
     """
     if projection_method is None:
         model_type = None
@@ -64,13 +57,30 @@ def plot_data_2d(
         # Reduce dimensionality
         transform_2d = model_type(n_components=2, n_jobs=-1, **kwargs)
         data_2d = transform_2d.fit_transform(data)
-        data_2d = typing.cast(np.ndarray, data_2d)
+        data_2d = typing.cast(np.typing.NDArray, data_2d)
+
+    return pd.DataFrame({"x": data_2d[:, 0], "y": data_2d[:, 1]})
+
+
+def plot_2d_data(data: pd.DataFrame, cluster_labels: pd.Series[pd.CategoricalDtype] | None = None):
+    """
+    Plots 2d dataset.
+
+    The points are colored based on cluster_labels, if provided.
+    """
+    # Copy data so the original object is not modified
+    data = data.copy()
+
+    # Color based on clustering if provided
+    aes_kwargs = {}
+    if cluster_labels is not None:
+        data["cluster"] = cluster_labels
+        aes_kwargs |= dict(fill="cluster", color="cluster")
 
     # Create plot
-    data_ggplot = pd.DataFrame({"x": data_2d[:, 0], "y": data_2d[:, 1], "cluster": cluster_labels})
     plot = (
-        p9.ggplot(data_ggplot)
-        + (p9.aes(x="x", y="y") if cluster_labels is None else p9.aes(x="x", y="y", fill="cluster", color="cluster"))
+        p9.ggplot(data)
+        + p9.aes(x=data.columns[0], y=data.columns[1], **aes_kwargs)
         + p9.geom_point(alpha=0.8)
         + theme_ggplot
     )
@@ -93,25 +103,28 @@ def plot_silhouette(data: pd.DataFrame, cluster_labels: pd.Series[pd.Categorical
     silhouettes = silhouette_samples(data, cluster_labels, metric="euclidean")
 
     # Create ggplot data
-    data_ggplot = pd.DataFrame({"cluster": cluster_labels, "silhouette": silhouettes}).assign(
-        **{"rank": lambda x: x.groupby("cluster")["silhouette"].rank(method="dense", ascending=False)}
+    data_ggplot = pd.DataFrame({"cluster": cluster_labels, "silhouette": silhouettes})
+    data_ggplot["rank"] = (
+        data_ggplot.groupby("cluster")["silhouette"]
+        .rank(method="first", ascending=False)
+        .astype("int")
+        .astype("category")
     )
 
     # Create silhouette plot
     silhouette_plot = (
         p9.ggplot(data_ggplot)
-        + p9.aes(x="factor(rank)", y="silhouette", fill="cluster")
-        + p9.facet_grid(rows="cluster", cols=None, scales="free_y", space="free_y")
-        + p9.geom_bar(stat="identity", width=1)
-        + p9.coord_flip()
+        + p9.aes("rank", "silhouette", group="cluster", color="cluster", fill="cluster")
+        + p9.facet_grid(rows=None, cols="cluster", scales="free_x", space="free_x")
+        + p9.geom_bar(stat="identity", width=0)
         + p9.labs(x="")
         + theme_ggplot
         + p9.theme(
-            axis_text_y=p9.element_blank(),
-            axis_ticks_y=p9.element_blank(),
+            axis_text_x=p9.element_blank(),
+            axis_ticks_x=p9.element_blank(),
             panel_grid=p9.element_blank(),
             strip_text=p9.element_blank(),
-            panel_grid_major_x=p9.element_line(color="gray", alpha=0.5),
+            panel_grid_major_y=p9.element_line(color="gray", alpha=0.5),
             panel_spacing=0,
             # panel_border=p9.element_rect(color="gray", alpha=0.5),
             plot_background=p9.element_rect(fill="gray", alpha=0.3),
