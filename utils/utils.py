@@ -56,10 +56,26 @@ def load_data(file_path: str | Path) -> Any:
     return data
 
 
+def save_plot(plot: p9.ggplot, save_path: str | Path, label: str = "plot", dpi: int | None = None, **kwargs) -> None:
+    """
+    Saves a ggplot plot as a PNG file.
+
+    Saves the passed data with a given file name and prints a message.
+    """
+    save_path = Path(save_path)
+    ext = save_path.suffix
+
+    # Save in PNG format and print message
+    if ext != ".png":
+        raise ValueError("The save path must have a png extension.")
+    plot.save(filename=save_path, dpi=dpi, **kwargs)
+    print(f"Saved {label} as an {ext} file to {save_path}.")
+
+
 def turn_cats_to_continuous(data: pd.DataFrame, treat_cat_as_continuous: Iterable[str] | None) -> pd.DataFrame:
     """
     Turn specified variables of data into continuous ones.
-    
+
     Used for categorical (pandas.CategoricalDType) variables that should be treated as continuous.
     """
     # Return a modified copy of the input

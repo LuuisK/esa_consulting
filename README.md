@@ -42,16 +42,16 @@ To get started:
 
 2. **Install Python dependencies**
 
-    The right Python version and package versions are specified in `uv.lock` and `pyproject.toml`. They need to be installed, e.g. using the tool `uv`. The tool `uv` automatically creates a virtual environment with the necessary packages installed when a script or notebook is run. To make uv install the dependencies without running a file use the following terminal command in the directory `esa_consulting`:
+    The right Python version and package versions are specified in `uv.lock` and `pyproject.toml`. They need to be installed, e.g. using the tool `uv`. The tool `uv` automatically creates a virtual environment (named `.venv`) with the necessary packages installed when a script or notebook is run. To make uv install the dependencies use the following terminal command in the directory `esa_consulting`:
 
     ```bash
     uv sync
     ```
 
-    Alternatively use `uv run` to run scripts, which automatically installs dependencies:
+    To explicitly switch into the virtual environment, use the terminal command:
 
     ```bash
-    uv run <script>
+    source .venv/bin/activate
     ```
 
     <details><summary>Adding or removing dependencies with uv</summary><ul>
@@ -62,51 +62,21 @@ To get started:
 
     </ul></details><br>
 
-3. **Install R dependencies**
+3. **Run the analysis**
 
-    The right R version needs to be installed. It can be read out from the `"R"["Version"]` register in `renv.lock`. (If the tool `rig` is installed it automatically does this and activates the right installation.)
+    Follow the instructions in the relevant notebooks.
 
-    Then the required R packages can be installed from `renv.lock` using the R package `renv` (installed from the R console using `install.packages("renv")`). In order to download the dependencies, run the following command in the R console:
+    If necessary, export the data from `Stata` as a `dta` file, and save it in the folder named `data/raw`, otherwise specify the path to the data as is detailed in the notebook you want to run. For confidentiality reasons, this GitHub project does not include the data used for training (ESA 2018 and 2021 surveys).
 
-    ```bash
-    renv::restore()
-    ```
-
-    <details><summary>A short explanation of renv</summary><ul>
-
-    *Taken from* <https://www.rdocumentation.org/packages/renv/versions/1.1.4>*:*
-
-    **Workflow**
-
-    Use `renv::init()` to initialize `renv` in a new or existing project. This will set up a project library, containing all the packages you’re currently using. The packages (and all the metadata needed to reinstall them) are recorded into a lockfile, `renv.lock`, and a `.Rprofile` ensures that the library is used every time you open that project.
-
-    As you continue to work on your project, you will install and upgrade packages, either using `install.packages()` and `update.packages()` or `renv::install()` and `renv::update()`. After you’ve confirmed your code works as expected, use `renv::snapshot()` to record the packages and their sources in the lockfile.
-
-    Later, if you need to share your code with someone else or run your code on a new machine, your collaborator (or you) can call `renv::restore()` to reinstall the specific package versions recorded in the lockfile.
-
-    </ul></details><br>
-
-4. **Run the analysis**
-
-    Follow the instructions in the relevant scripts or notebooks.
-
-    If necessary, export the data from `Stata` as a `dta` file, and save it in the folder named `data/raw`, otherwise specify the path to the data as is detailed in the script you want to run. For confidentiality reasons, this GitHub project does not include the data used for training (ESA 2018 and 2021).
-
-    The order of the scripts is as follows:
+    The order of the notebooks is as follows:
 
     ```bash
-    preprocessing.R -> (plot_corr_assoc.R ->) dimensionality_reduction.R -> clustering.R
+    preprocessing.ipynb -> (plot_corr_assoc.ipynb ->) dimensionality_reduction.ipynb -> clustering.ipynb
     ```
 
-    or:
+4. **Explore the results**
 
-    ```bash
-    preprocessing.py -> (plot_corr_assoc.py ->) dimensionality_reduction.py -> clustering.py
-    ```
-
-5. **Explore the results**
-
-    Check the generated output files in the output directory (if left unspecified the default is `results`).
+    Check the generated output files in the output directory (the default is `results`).
 
 </details>
 
