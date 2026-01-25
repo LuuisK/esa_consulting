@@ -1,4 +1,4 @@
-"""Module with functions for preprocessing.ipynb"""
+"""Module with utilities for preprocessing."""
 
 from __future__ import annotations
 
@@ -88,17 +88,14 @@ def sort_types_vars_info(vars_info: pd.DataFrame, types_by_name: dict[str, list[
     return vars_info
 
 
-def preprocess_data(
-    data: pd.DataFrame, vars_info: pd.DataFrame, remove_all_na_vars: bool = True, drop_vars: list[str] | None = None
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+def convert_data_types(data: pd.DataFrame, vars_info: pd.DataFrame) -> pd.DataFrame:
     """
-    Preprocesses the data:
-    - Converts factorial data to have categorical data type and saves the original levels in vars_info.
-    - Removes unimportant features.
+    Converts the data types if necessary.
+
+    Converts factorial data to have categorical data type and saves the original levels in vars_info.
     """
     # Return a modified copy of the input
     data = data.copy()
-    vars_info = vars_info.copy()
 
     # Convert categorical variables to factors
     categorical_vars: pd.Series[pd.StringDtype] = vars_info.loc[
@@ -117,21 +114,26 @@ def preprocess_data(
     #     data[var] = data[var].cat.rename_categories(new_cats)
     #     vars_info.loc[vars_info["name"] == var, "labels"] = [new_value_dict]
 
-    if remove_all_na_vars:
-        # Remove features that are NA everywhere from the dataset and vars_info
-        all_na_vars: pd.Series[pd.StringDtype] = vars_info.loc[vars_info["type"] == "all_na", "name"]
-        print(
-            f"Dropped the following variables from the dataset because they are missing everywhere: "
-            f"{all_na_vars.to_list()}"
-        )
-        data = data.drop(columns=all_na_vars)
-        vars_info = vars_info[vars_info["type"] != "all_na"]
-        vars_info["type"] = vars_info["type"].cat.remove_categories("all_na")
+    return data
+
+
+def remove_variables(
+    data: pd.DataFrame, vars_info: pd.DataFrame, drop_vars: list[str] | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Removes specified features from both the data and variable information data-frames.
+    """
+    # Return a modified copy of the input
+    data = data.copy()
+    vars_info = vars_info.copy()
 
     if drop_vars is not None:
         # Remove specified unimportant variables
         data = data.drop(columns=drop_vars, errors="ignore")
         vars_info = vars_info[~vars_info["name"].isin(drop_vars)].reset_index()
+
+    vars_info["type"] = vars_info["type"].cat.remove_unused_categories()
+    vars_info["group"] = vars_info["group"].cat.remove_unused_categories()
 
     return data, vars_info
 

@@ -1,4 +1,4 @@
-"""Module with functions for plot_corr_assoc.ipynb"""
+"""Module with utilities for analysing correlations and associations."""
 
 from __future__ import annotations
 
@@ -8,11 +8,8 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
-import plotnine as p9
 from scipy.stats import kruskal, spearmanr
 from scipy.stats.contingency import association, chi2_contingency
-
-from utils.utils import theme_ggplot, turn_cats_to_continuous
 
 pd.options.mode.copy_on_write = True
 
@@ -66,7 +63,7 @@ def measure_corr_continuous(valuesi: pd.Series, valuesj: pd.Series, **kwargs) ->
 
 
 def measure_assoc_mixed(
-    valuesi: pd.Series, valuesj: pd.Series, which_continuous: Literal["i", "j"] | None
+    valuesi: pd.Series, valuesj: pd.Series, which_continuous: Literal["i", "j"] | None = None
 ) -> tuple[float, float]:
     """
     Measures the association of a nominal and a continuous variable.
@@ -90,7 +87,11 @@ def measure_assoc_mixed(
 
     # Compute eta and conduct Kruskal-Wallis test
     groups = [cont_values[dum] for var, dum in pd.get_dummies(cat_values).items()]
-    stat, p_value = kruskal(*groups, nan_policy="omit")
+    if np.all(np.concat(groups) == next(iter(groups[0]))):
+        # Kruskal-Wallis test is not defined if all values are equal. We define the p-value as 1.
+        p_value = 1.0
+    else:
+        stat, p_value = kruskal(*groups, nan_policy="omit")
     p_value = typing.cast(np.float64, p_value)
     assoc = correlation_ratio(*groups)
 
@@ -120,9 +121,7 @@ def measure_assoc_nominal(valuesi: pd.Series, valuesj: pd.Series, **kwargs) -> t
     return assoc, p_value
 
 
-def create_corr_assoc_matrix(
-    data: pd.DataFrame, treat_cat_as_continuous: list[str] | None = None
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+def create_corr_assoc_matrix(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Creates a matrix containing values that measure the correlation or association between variables.
 
@@ -143,9 +142,6 @@ def create_corr_assoc_matrix(
     corr_assoc_matrix = pd.DataFrame(np.eye(len(data.columns)), columns=data.columns, index=data.columns)
     p_value_matrix = pd.DataFrame(np.eye(len(data.columns)), columns=data.columns, index=data.columns)
 
-    # Recode to continuous (category codes go up from 0, -1 means pd.NA)
-    data = turn_cats_to_continuous(data, treat_cat_as_continuous)
-
     # Loop over pairs of variables
     for vari, varj in itertools.combinations(data.columns, r=2):
         # Get variable types
@@ -165,87 +161,3 @@ def create_corr_assoc_matrix(
         p_value_matrix.loc[vari, varj] = p_value_matrix.loc[varj, vari] = p_value
 
     return corr_assoc_matrix, p_value_matrix
-
-
-def _is_cat(var: str, values: pd.Series, treat_cat_as_continuous: list[str] | None = None):
-    return isinstance(values.dtype, pd.CategoricalDtype) and not (
-        treat_cat_as_continuous is not None and var in treat_cat_as_continuous
-    )
-
-
-def plot_corr_assoc_matrix(data: pd.DataFrame, treat_cat_as_continuous: list[str] | None = None) -> p9.ggplot:
-    """
-    Creates and displays a matrix containing values that measure the correlation or association between variables.
-
-    See create_corr_assoc_matrix for the correlation and association measures used.
-    """
-    # Create correlation matrix
-    corr_assoc_matrix, p_value_matrix = create_corr_assoc_matrix(data, treat_cat_as_continuous=treat_cat_as_continuous)
-
-    # Order variables into blocks
-    categorical_vars = [var for var in data.columns if _is_cat(var, data[var], treat_cat_as_continuous)]
-    continuous_vars = set(data.columns) - set(categorical_vars)
-    vars_ordered = [*continuous_vars, *categorical_vars]
-
-    # Pivot matrices
-    corr_assocs = corr_assoc_matrix.stack(future_stack=True).rename("corr_assoc")  # type: ignore
-    p_values = p_value_matrix.stack(future_stack=True).rename("p_value")  # type: ignore
-
-    # Create dataset
-    def _get_type(var, values, treat_cat_as_continuous: list[str] | None = None):
-        return "qualitative" if _is_cat(var, values, treat_cat_as_continuous) else "quantitative"
-
-    data_ggplot = (
-        pd.merge(corr_assocs, p_values, left_index=True, right_index=True)
-        .reset_index(names=["vari", "varj"])
-        .astype(
-            {
-                "vari": pd.CategoricalDtype(categories=vars_ordered),
-                "varj": pd.CategoricalDtype(categories=vars_ordered[::-1]),
-                "corr_assoc": np.float64,
-                "p_value": np.float64,
-            }
-        )
-        .assign(
-            **{
-                "i_type": lambda x: pd.Categorical(
-                    x.apply(lambda row: _get_type(row["vari"], data[row["vari"]], treat_cat_as_continuous), axis=1),
-                    categories=["quantitative", "qualitative"],
-                ),
-                "j_type": lambda x: pd.Categorical(
-                    x.apply(lambda row: _get_type(row["varj"], data[row["varj"]], treat_cat_as_continuous), axis=1),
-                    categories=["quantitative", "qualitative"],
-                ),
-                "significant": lambda x: pd.Categorical((x["p_value"] < 0.05).astype(str), categories=["False"]),
-            }
-        )
-    )
-
-    # Fix plot labels
-    var_scale = data_ggplot["i_type"].unique()
-    if "qualitative" not in var_scale:
-        corr_assoc_str = "correlation"
-        n_types = 1
-    elif "quantitative" not in var_scale:
-        corr_assoc_str = "association"
-        n_types = 1
-    else:
-        corr_assoc_str = "correlation /\nassociation"
-        n_types = 2
-
-    # Create plot
-    corr_assoc_plot = (
-        p9.ggplot(data_ggplot, p9.aes(x="vari", y="varj", fill="corr_assoc"))
-        + p9.geom_tile(width=1)
-        + (p9.facet_grid(rows="j_type", cols="i_type", scales="free", space="free") if n_types == 2 else None)
-        + p9.labs(x="", y="", fill=corr_assoc_str)
-        + p9.scale_fill_gradient(low="darkblue", high="lightblue", na_value="red", limits=(0, 1))
-        + p9.coord_fixed()
-        + p9.geom_point(p9.aes(x="vari", y="varj", shape="significant"), inherit_aes=False)
-        + p9.scale_shape_manual(
-            values={"False": "x"}, name=" ", labels={"False": f"no significant\n{corr_assoc_str}"}, na_translate=False
-        )
-        + theme_ggplot
-        + p9.theme(axis_text_x=p9.element_text(rotation="vertical"))
-    )
-    return corr_assoc_plot

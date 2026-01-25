@@ -1,133 +1,122 @@
-"""Module with functions for clustering.ipynb"""
+"""Module with utilities for clustering."""
 
 from __future__ import annotations
 
-import typing
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
-import plotnine as p9
-from sklearn.manifold import MDS, TSNE, Isomap, LocallyLinearEmbedding, SpectralEmbedding
-from sklearn.metrics import silhouette_samples
-from umap import UMAP
-
-from utils.utils import theme_ggplot
+import validclust
+from gapstat import gapstat_score
+from scipy.stats import entropy
+from scipy.stats.contingency import association, chi2_contingency
+from sklearn.base import BaseEstimator
+from sklearn.metrics import (
+    adjusted_rand_score,
+    calinski_harabasz_score,
+    davies_bouldin_score,
+    mutual_info_score,
+    normalized_mutual_info_score,
+    pairwise_distances,
+    silhouette_score,
+)
 
 pd.options.mode.copy_on_write = True
 
-# Create projection method types, lists, and
-DeterministicProjection = Isomap
-deterministic_projection_list = [Isomap]
-str_to_deterministic_projection: dict[str, type[DeterministicProjection]] = {
-    x.__name__.lower(): x for x in deterministic_projection_list
-}
 
-RandomProjection = LocallyLinearEmbedding | MDS | SpectralEmbedding | TSNE | UMAP
-random_projection_list = [LocallyLinearEmbedding, MDS, SpectralEmbedding, TSNE, UMAP]
-str_to_random_projection: dict[str, type[RandomProjection]] = {x.__name__.lower(): x for x in random_projection_list}
-
-Projection = DeterministicProjection | RandomProjection
-projection_list = [*deterministic_projection_list, *random_projection_list]
-str_to_projection: dict[str, type[Projection]] = {x.__name__.lower(): x for x in projection_list}
-
-
-def reduce_dimen_2d(data: pd.DataFrame, projection_method: str | type[Projection] | None = None, **kwargs):
-    """Projects data to 2d.
-
-    The data is projected with the method specified as projection_method, if left unspecified the first two coordinates
-    of the data are taken as the 2d representation. Valid projection methods are Isomap, LocallyLinearEmbedding, MDS,
-    SpectralEmbedding, and TSNE. Certain projection methods require random numbers, otherwise a given RNG is ignored.
+def print_clustering_info(cluster_labels: pd.Series[pd.CategoricalDtype], sort_by_size: bool = False) -> None:
     """
-    if projection_method is None:
-        model_type = None
-    elif isinstance(projection_method, str):
-        # Get model from string
-        model_type = str_to_projection[projection_method.lower()]
-    elif issubclass(projection_method, Projection):
-        model_type = projection_method
-
-    if model_type is None:
-        # Reduce to first two variables
-        data_2d = data[:, :2].to_numpy()
-    else:
-        rng = np.random.default_rng(kwargs.pop("rng", None))
-        if issubclass(model_type, RandomProjection):
-            # Set random state in keyword argument dictionary
-            kwargs["random_state"] = np.random.RandomState(rng.bit_generator)
-        # Reduce dimensionality
-        transform_2d = model_type(n_components=2, n_jobs=-1, **kwargs)
-        data_2d = transform_2d.fit_transform(data)
-        data_2d = typing.cast(np.typing.NDArray, data_2d)
-
-    return pd.DataFrame({"x": data_2d[:, 0], "y": data_2d[:, 1]})
-
-
-def plot_2d_data(data: pd.DataFrame, cluster_labels: pd.Series[pd.CategoricalDtype] | None = None):
+    Prints some information about a clustering.
     """
-    Plots 2d dataset.
-
-    The points are colored based on cluster_labels, if provided.
-    """
-    # Copy data so the original object is not modified
-    data = data.copy()
-
-    # Color based on clustering if provided
-    aes_kwargs = {}
-    if cluster_labels is not None:
-        data["cluster"] = cluster_labels
-        aes_kwargs |= dict(fill="cluster", color="cluster")
-
-    # Create plot
-    plot = (
-        p9.ggplot(data)
-        + p9.aes(x=data.columns[0], y=data.columns[1], **aes_kwargs)
-        + p9.geom_point(alpha=0.8)
-        + theme_ggplot
-    )
-    return plot
-
-
-def print_clustering_info(cluster_labels: pd.Series[pd.CategoricalDtype]) -> None:
-    """Prints some information about a clustering."""
     print(f"{len(cluster_labels.cat.categories.values)} clusters, {100 * cluster_labels.isna().mean():0.2f}% outliers")
-    print(
-        f"Percentage in clusters: {
-            (cluster_labels.value_counts(normalize=True, dropna=False).apply(lambda x: 100 * x).sort_index().to_dict())
-        }"
-    )
+    cluster_probabilities = cluster_labels.value_counts(normalize=True, ascending=False, dropna=False)
+    cluster_probabilities = cluster_probabilities if sort_by_size else cluster_probabilities.sort_index()
+    print(f"Percentage in clusters: {cluster_probabilities.apply(lambda x: 100 * x).to_dict()}")
 
 
-def plot_silhouette(data: pd.DataFrame, cluster_labels: pd.Series[pd.CategoricalDtype]) -> p9.ggplot:
-    """Creates a silhouette plot."""
-    # Compute silhouettes
-    silhouettes = silhouette_samples(data, cluster_labels, metric="euclidean")
+def dunn_index(data: pd.DataFrame, labels: pd.Series[pd.CategoricalDtype]) -> np.float64:
+    dist = pairwise_distances(data)
+    return validclust.dunn(dist, labels)
 
-    # Create ggplot data
-    data_ggplot = pd.DataFrame({"cluster": cluster_labels, "silhouette": silhouettes})
-    data_ggplot["rank"] = (
-        data_ggplot.groupby("cluster")["silhouette"]
-        .rank(method="first", ascending=False)
-        .astype("int")
+
+def predict_clustering_labels(model: BaseEstimator, data: pd.DataFrame) -> pd.Series[pd.CategoricalDtype]:
+    """
+    Predicts labels for a dataset with a clustering model.
+    """
+    return (
+        pd.Series(data=model.predict(data), index=data.index.copy())  # type: ignore
+        .replace(-1, pd.NA)
         .astype("category")
     )
 
-    # Create silhouette plot
-    silhouette_plot = (
-        p9.ggplot(data_ggplot)
-        + p9.aes("rank", "silhouette", group="cluster", color="cluster", fill="cluster")
-        + p9.facet_grid(rows=None, cols="cluster", scales="free_x", space="free_x")
-        + p9.geom_bar(stat="identity", width=0)
-        + p9.labs(x="")
-        + theme_ggplot
-        + p9.theme(
-            axis_text_x=p9.element_blank(),
-            axis_ticks_x=p9.element_blank(),
-            panel_grid=p9.element_blank(),
-            strip_text=p9.element_blank(),
-            panel_grid_major_y=p9.element_line(color="gray", alpha=0.5),
-            panel_spacing=0,
-            # panel_border=p9.element_rect(color="gray", alpha=0.5),
-            plot_background=p9.element_rect(fill="gray", alpha=0.3),
-        )
-    )
-    return silhouette_plot
+
+def print_cluster_statistics(
+    cluster_labels_list: Sequence[pd.Series[pd.CategoricalDtype]],
+    datas: Sequence[pd.DataFrame],
+    labels: Sequence[str] | None = None,
+) -> None:
+    """
+    Prints some statistics of one or more clusterings.
+    """
+    labels = [f"clustering {i}" for i in range(len(datas))] if labels is None else labels
+
+    len_label = max([len(label) for label in labels])
+    labels_padded = [f"{label + ':':<{len_label + 3}}" for label in labels]
+
+    print(f"Comparison between {labels}:")
+    print("")
+
+    for cluster_labels, data, label_padded in zip(cluster_labels_list, datas, labels_padded, strict=True):
+        print(label_padded.capitalize(), end="")
+        print_clustering_info(cluster_labels, sort_by_size=True)
+    print("")
+
+    for cluster_labels, data, label_padded in zip(cluster_labels_list, datas, labels_padded, strict=True):
+        print(f"Davies‒Bouldin index {label_padded}{davies_bouldin_score(data, labels=cluster_labels)}")
+    print("")
+
+    for cluster_labels, data, label_padded in zip(cluster_labels_list, datas, labels_padded, strict=True):
+        print(f"Caliński–Harabasz index {label_padded}{calinski_harabasz_score(data, labels=cluster_labels)}")
+    print("")
+
+    for cluster_labels, data, label_padded in zip(cluster_labels_list, datas, labels_padded, strict=True):
+        print(f"Mean silhouette coefficient {label_padded}{silhouette_score(data, labels=cluster_labels)}")
+    print("")
+
+    for cluster_labels, data, label_padded in zip(cluster_labels_list, datas, labels_padded, strict=True):
+        print(f"Dunn index {label_padded}{dunn_index(data, labels=cluster_labels)}")
+    print("")
+
+    for cluster_labels, data, label_padded in zip(cluster_labels_list, datas, labels_padded, strict=True):
+        print(f"Gap statistic {label_padded}{gapstat_score(data, labels=cluster_labels)}")
+
+
+def variation_of_information(x, y):
+    voi = entropy(x) + entropy(y) - 2 * mutual_info_score(x, y)
+    return voi
+
+
+def print_cluster_stability(
+    cluster_labels1: pd.Series[pd.CategoricalDtype], cluster_labels2: pd.Series[pd.CategoricalDtype]
+) -> None:
+    """
+    Prints a comparison of two clusterings of the same dataset.
+    """
+    print(f"Adjusted rand index:       {adjusted_rand_score(cluster_labels1, cluster_labels2)}")
+    print(f"Mutual information:        {normalized_mutual_info_score(cluster_labels1, cluster_labels2)}")
+    print(f"Variation of information:  {variation_of_information(cluster_labels1, cluster_labels2)}")
+    cont_table = pd.crosstab(cluster_labels1, cluster_labels2)
+    print(f"Cramér's V:                {association(observed=cont_table, method='cramer')}")
+    print(f"Chi squared statistic:     {chi2_contingency(observed=cont_table)[0]}")
+
+
+def cluster_summaries(
+    data: pd.DataFrame, labels: pd.Series[pd.CategoricalDtype], agg_func: pd._typing.AggFuncTypeFrame = ["mean", "std"]
+):
+    """
+    Cluster summaries
+
+    The data must not contain categorical columns. The indices of data and labels have to line up.
+    """
+    cluster_summaries = data.assign(**{"cluster": labels}).groupby("cluster", observed=True).aggregate(agg_func)
+    return cluster_summaries
