@@ -1,14 +1,13 @@
-"""
-Script for defining helpful functions.
-"""
+"""Module with utilities for saving."""
 
 import pickle
+import warnings
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
-import numpy as np
-import pandas as pd
 import plotnine as p9
+from plotnine.composition import Compose
+from plotnine.exceptions import PlotnineWarning
 
 
 def check_save_path(save_path: str | Path, allow_overwrite: bool = True, create_folder: bool = True) -> None:
@@ -24,7 +23,7 @@ def check_save_path(save_path: str | Path, allow_overwrite: bool = True, create_
         save_path.parent.mkdir(exist_ok=True)
 
 
-def save_data(data: Any, save_path: str | Path, label: str = "object") -> None:
+def save_data(data: Any, save_path: str | Path) -> None:
     """
     Saves a Python object as a Pickle file.
 
@@ -38,7 +37,7 @@ def save_data(data: Any, save_path: str | Path, label: str = "object") -> None:
         raise ValueError("The save path must have a pkl extension.")
     with open(save_path, "wb") as file:
         pickle.dump(data, file, protocol=-1)
-    print(f"Saved {label} as an {ext} file to {save_path}.")
+    print(f"Saved file to {save_path}.")
 
 
 def load_data(file_path: str | Path) -> Any:
@@ -56,9 +55,9 @@ def load_data(file_path: str | Path) -> Any:
     return data
 
 
-def save_plot(plot: p9.ggplot, save_path: str | Path, label: str = "plot", dpi: int | None = None, **kwargs) -> None:
+def save_plot(plot: p9.ggplot | Compose, save_path: str | Path, **kwargs) -> None:
     """
-    Saves a ggplot plot as a PNG file.
+    Saves a plotnine plot as a PNG file.
 
     Saves the passed data with a given file name and prints a message.
     """
@@ -68,24 +67,8 @@ def save_plot(plot: p9.ggplot, save_path: str | Path, label: str = "plot", dpi: 
     # Save in PNG format and print message
     if ext != ".png":
         raise ValueError("The save path must have a png extension.")
-    plot.save(filename=save_path, dpi=dpi, **kwargs)
-    print(f"Saved {label} as an {ext} file to {save_path}.")
-
-
-def turn_cats_to_continuous(data: pd.DataFrame, treat_cat_as_continuous: Iterable[str] | None) -> pd.DataFrame:
-    """
-    Turn specified variables of data into continuous ones.
-
-    Used for categorical (pandas.CategoricalDType) variables that should be treated as continuous.
-    """
-    # Return a modified copy of the input
-    data = data.copy()
-
-    treat_cat_as_continuous = [] if treat_cat_as_continuous is None else list(treat_cat_as_continuous)
-    treat_cat_as_continuous = [var for var in treat_cat_as_continuous if var in data.columns]
-    data[treat_cat_as_continuous] = data[treat_cat_as_continuous].apply(lambda col: col.cat.codes.replace(-1, np.nan))
-    return data
-
-
-# Create ggplot theme
-theme_ggplot: p9.theme = p9.theme_minimal()
+    with warnings.catch_warnings():
+        # Catch PlotnineWarnings that are issued every time a file is saved
+        warnings.filterwarnings("ignore", category=PlotnineWarning)
+        plot.save(filename=save_path, **kwargs)
+    print(f"Saved file to {save_path}.")

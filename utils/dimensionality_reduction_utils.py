@@ -1,112 +1,106 @@
-"""Module with functions for dimensionality_reduction.ipynb"""
+"""Module with utilities for dimensionality reduction."""
 
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import plotnine as p9
-from prince import FAMD, MCA, PCA
-
-from utils.utils import theme_ggplot, turn_cats_to_continuous
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.decomposition import PCA
 
 pd.options.mode.copy_on_write = True
 
-DimRedMethod = FAMD | PCA | MCA
-dim_red_method_list = [FAMD, PCA, MCA]
-str_to_dim_red_method: dict[str, type[DimRedMethod]] = {x.__name__.lower(): x for x in dim_red_method_list}
 
-
-def reduce_dimen(
-    data: pd.DataFrame,
-    dim_red_method: str | type[DimRedMethod] = "PCA",
-    n_components: int = 10,
-    treat_cat_as_continuous: list[str] | None = None,
-    rng: np.random.Generator | np.random.BitGenerator | None = None,
-) -> tuple[pd.DataFrame, DimRedMethod, pd.DataFrame]:
+class BlockPCA(TransformerMixin, BaseEstimator):
     """
-    Reduce the dimensionality of the input data to a specified number of coordinates.
+    Block PCA
 
-    The available methods are PCA, MCA, and FAMD. For categorical (pandas.CategoricalDType) variables to be treated like
-    continuous ones, they need to be passed to treat_cat_as_continuous.
+    A class to perform PCA on variable groups, using the scikit-learn transformer template.
     """
-    # Create RNG to simulate randomness
-    rng = np.random.default_rng(rng)
 
-    # Recode to continuous
-    data = turn_cats_to_continuous(data, treat_cat_as_continuous)
-
-    if isinstance(dim_red_method, str):
-        # Get model from string
-        model_type = str_to_dim_red_method[dim_red_method.lower()]
-    elif issubclass(dim_red_method, DimRedMethod):
-        model_type = dim_red_method
-
-    # Initialize model
-    random_state = np.random.RandomState(rng.bit_generator)
-    if issubclass(model_type, FAMD):
-        model = model_type(n_components=n_components, n_iter=3, random_state=random_state)
-    elif issubclass(model_type, PCA):
-        model = model_type(n_components=n_components, n_iter=3, random_state=random_state)
-    elif issubclass(model_type, MCA):
-        model = model_type(
-            n_components=n_components, n_iter=10, random_state=random_state, one_hot=True, handle_unknown="error"
-        )
-
-    model.fit(data)
-    data_loadings = model.row_coordinates(data)
-    var_loadings = model.column_coordinates_  # type: ignore
-
-    return data_loadings, model, var_loadings
-
-
-def plot_reduced_data(
-    data_loadings: pd.DataFrame,
-    var_loadings: pd.DataFrame | None = None,
-    cluster_labels=None,
-    comp_x_id: int = 0,
-    comp_y_id: int = 1,
-    var_marker: str = "x",
-) -> p9.ggplot:
-    """
-    Plots data after dimensionality reduction.
-
-    The columns are the ordered coordinates of reduced dimensionality.
-    """
-    guide = "legend" if cluster_labels is not None else None
-    cluster_labels = len(data_loadings) * [0] if cluster_labels is None else cluster_labels
-
-    # Create data for ggplot
-    data_ggplot = data_loadings.rename(lambda x: f"comp_{x}", axis=1).assign(
-        **{
-            "cluster": pd.Categorical(
-                [f"cluster {i}" if i >= 0 else np.nan for i in cluster_labels],
-                categories=[f"cluster {i}" for i in sorted(set(cluster_labels) - {-1})],
-            )
-        }
-    )
-
-    # Create plot
-    plot = (
-        p9.ggplot(data_ggplot, p9.aes(x=f"comp_{comp_x_id}", y=f"comp_{comp_y_id}", fill="cluster"))
-        + p9.geom_point(alpha=0.8, stroke=0)
-        + p9.scale_fill_brewer(type="qualitative", palette="Set2", na_value="white", guide=guide)
-        + theme_ggplot
-    )
-    if var_loadings is not None:
-        var_ggplot = (
-            None
-            if var_loadings is None
-            else ((var_loadings * data_loadings.abs().max()).rename(lambda x: f"comp_{x}", axis=1).reset_index())
-        )
-        if var_marker == "label":
-            plot += p9.geom_label(
-                p9.aes(x=f"comp_{comp_x_id}", y=f"comp_{comp_y_id}", label="variable", group="variable"),
-                size=5,
-                data=var_ggplot,
-                inherit_aes=False,
-                # position=p9.position_jitter()
-            )
+    def __init__(
+        self,
+        var_groups: dict[str, list[str]],
+        n_components_per_group: int | dict[str, int],
+        *,
+        rng: np.random.Generator | np.random.BitGenerator | None = None,
+        **kwargs,
+    ):
+        self.var_groups = var_groups
+        if isinstance(n_components_per_group, int):
+            self.n_components_per_group = {group: n_components_per_group for group in var_groups.keys()}
         else:
-            plot += p9.geom_point(data=var_ggplot, fill="green", color="green", alpha=1, shape=var_marker)
+            self.n_components_per_group = n_components_per_group
+        self.models = {group: PCA() for group in var_groups.keys()}
+        self.rng = np.random.default_rng(rng)
+        self.pca_kwargs = kwargs
 
-    return plot
+    def fit(self, X: pd.DataFrame, y: None = None, **kwargs):
+        data = X
+
+        for group, group_vars in self.var_groups.items():
+            # Restrict to one group
+            group_data = data[group_vars]
+            n_components = self.n_components_per_group[group]
+
+            # Fit model
+            random_state = np.random.RandomState(self.rng.bit_generator)
+            kwargs = self.pca_kwargs | kwargs
+            model = PCA(n_components=n_components, random_state=random_state, **kwargs)
+            model.fit(group_data)
+
+            # Save model
+            self.models[group] = model
+
+        return self
+
+    def transform(self, X: pd.DataFrame):
+        data = X
+
+        # Save index
+        index = data.index.copy()
+
+        data_pca: list[pd.DataFrame] = []
+        for group, group_vars in self.var_groups.items():
+            # Restrict to one group
+            model = self.models[group]
+            group_data = data[group_vars]
+
+            # Transform
+            data_loadings = pd.DataFrame(model.transform(X=group_data)).rename(columns=lambda x: f"{group}_comp_{x}")
+
+            # Save data
+            data_pca.append(data_loadings)
+
+        # Concatenate components from groups
+        data_pca_merged = pd.concat(data_pca, axis=1)
+
+        # Set index and return data
+        data_pca_merged.index = index
+        return data_pca_merged
+
+    def inverse_transform(self, X: pd.DataFrame):
+        data = X
+
+        # Save index
+        index = data.index.copy()
+
+        data_pca_inv: list[pd.DataFrame] = []
+        for group, group_vars in self.var_groups.items():
+            # Restrict to one group
+            model = self.models[group]
+            group_data = data.loc[:, data.columns.str.startswith(group)]
+
+            # Transform back
+            data_values = pd.DataFrame(model.inverse_transform(X=group_data)).rename(
+                columns=lambda x, iter=iter(group_vars): next(iter)
+            )
+
+            # Save data
+            data_pca_inv.append(data_values)
+
+        # Concatenate components from groups
+        data_pca_inv_merged = pd.concat(data_pca_inv, axis=1)
+
+        # Set index and return data
+        data_pca_inv_merged.index = index
+        return data_pca_inv_merged
