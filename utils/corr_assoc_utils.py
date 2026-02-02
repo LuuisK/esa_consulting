@@ -16,16 +16,16 @@ pd.options.mode.copy_on_write = True
 
 def correlation_ratio(*samples: pd.Series) -> float:
     """
-    Computes eta squared (the squared correlation ratio).
+    Computes eta (the correlation ratio).
 
-    Outputs eta squared. Since this is not defined when all values in all samples are equal 1 is returned in that case.
+    Outputs eta. Since this is not defined when all values in all samples are equal 1 is returned in that case.
     """
     # Calculate grand mean
     all_values = np.concatenate(samples)
     grand_mean = np.nanmean(all_values)
 
     # Calculate between and total sums of squares
-    ss_between = np.sum([len(sample) * (np.nanmean(sample) - grand_mean) ** 2 for sample in samples], dtype=np.float64)
+    ss_between = np.sum([sample.count() * (np.nanmean(sample) - grand_mean) ** 2 for sample in samples], dtype=np.float64)
     ss_total = np.nansum((all_values - grand_mean) ** 2, dtype=np.float64)
 
     # Calculate eta-squared, set to 1 if all values are equal
