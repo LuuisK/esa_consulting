@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import itertools
+from typing import Self
+
 import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator, TransformerMixin
+import scipy.linalg
 from sklearn.decomposition import PCA
+from sklearn.decomposition._base import _BasePCA
 
 pd.options.mode.copy_on_write = True
 
 
-class BlockPCA(TransformerMixin, BaseEstimator):
+class BlockPCA(_BasePCA):
     """
     Block PCA
 
@@ -24,17 +28,26 @@ class BlockPCA(TransformerMixin, BaseEstimator):
         *,
         rng: np.random.Generator | np.random.BitGenerator | None = None,
         **kwargs,
-    ):
+    ) -> None:
+        super().__init__()
         self.var_groups = var_groups
         if isinstance(n_components_per_group, int):
-            self.n_components_per_group = {group: n_components_per_group for group in var_groups.keys()}
+            self.n_components_per_group = {group: n_components_per_group for group in var_groups}
         else:
             self.n_components_per_group = n_components_per_group
-        self.models = {group: PCA() for group in var_groups.keys()}
+        self.models = {group: PCA() for group in var_groups}
         self.rng = np.random.default_rng(rng)
         self.pca_kwargs = kwargs
+        self.whiten = False
 
-    def fit(self, X: pd.DataFrame, y: None = None, **kwargs):
+    def fit(self, X: pd.DataFrame, y: None = None, **kwargs) -> Self:
+        """
+        Fit BlockPCA model.
+
+        The column names of X have to be made up of the names
+        ("{group}_comp_{i}" for group in self.var_groups for i in self.n_components_per_group[group]). Input y is
+        ignored. Input keyword arguments are passed to all PCA constructors.
+        """
         data = X
 
         for group, group_vars in self.var_groups.items():
@@ -51,56 +64,60 @@ class BlockPCA(TransformerMixin, BaseEstimator):
             # Save model
             self.models[group] = model
 
+        # Build mean vector and component matrix
+        self.mean_ = np.concat([model.mean_ for model in self.models.values()])
+        self.components_ = scipy.linalg.block_diag(*(model.components_ for model in self.models.values()))
+        # Assign empty array to explained_variance_ so that super().transform(...) works
+        self.explained_variance_ = np.array([])
+        # # Assign empty array to noise_variance_
+        # self.noise_variance_ = np.array([])
+
         return self
 
-    def transform(self, X: pd.DataFrame):
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """
+        BlockPCA transform.
+
+        Can only be applied if the model has been fitted. The column names of X have to be made up of the column names
+        of the data that this model was fitted on.
+        """
         data = X
 
         # Save index
         index = data.index.copy()
 
-        data_pca: list[pd.DataFrame] = []
-        for group, group_vars in self.var_groups.items():
-            # Restrict to one group
-            model = self.models[group]
-            group_data = data[group_vars]
-
-            # Transform
-            data_loadings = pd.DataFrame(model.transform(X=group_data)).rename(columns=lambda x: f"{group}_comp_{x}")
-
-            # Save data
-            data_pca.append(data_loadings)
-
-        # Concatenate components from groups
-        data_pca_merged = pd.concat(data_pca, axis=1)
+        vars_in_order = itertools.chain.from_iterable(self.var_groups.values())
+        columns_in_order = (
+            f"{group}_comp_{i}" for group in self.var_groups for i in range(self.n_components_per_group[group])
+        )
+        data_pca = pd.DataFrame(super().transform(data[vars_in_order].to_numpy())).rename(
+            columns=lambda x: next(columns_in_order)
+        )
 
         # Set index and return data
-        data_pca_merged.index = index
-        return data_pca_merged
+        data_pca.index = index
+        return data_pca
 
-    def inverse_transform(self, X: pd.DataFrame):
+    def inverse_transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """
+        Inverse BlockPCA transform.
+
+        Can only be applied if the model has been fitted. The column names of X have to be made up of the names
+        ("{group}_comp_{i}" for group in self.var_groups for i in range(self.n_components_per_group[group])).
+        """
         data = X
 
-        # Save index
+        # Save index and columns
         index = data.index.copy()
 
-        data_pca_inv: list[pd.DataFrame] = []
-        for group, group_vars in self.var_groups.items():
-            # Restrict to one group
-            model = self.models[group]
-            group_data = data.loc[:, data.columns.str.startswith(group)]
+        vars_in_order = itertools.chain.from_iterable(self.var_groups.values())
+        columns_in_order = (
+            f"{group}_comp_{i}" for group in self.var_groups for i in range(self.n_components_per_group[group])
+        )
+        data_pca_inv = pd.DataFrame(super().inverse_transform(data[columns_in_order].to_numpy())).rename(
+            columns=lambda x: next(vars_in_order)
+        )
 
-            # Transform back
-            data_values = pd.DataFrame(model.inverse_transform(X=group_data)).rename(
-                columns=lambda x, iter=iter(group_vars): next(iter)
-            )
-
-            # Save data
-            data_pca_inv.append(data_values)
-
-        # Concatenate components from groups
-        data_pca_inv_merged = pd.concat(data_pca_inv, axis=1)
-
-        # Set index and return data
-        data_pca_inv_merged.index = index
-        return data_pca_inv_merged
+        # Set index and columns and return data
+        data_pca_inv.index = index
+        return data_pca_inv
