@@ -38,7 +38,7 @@ class MICEForest(TransformerMixin, BaseEstimator):
         self.kernel_kwargs = {
             key: value for key, value in kwargs.items() if key in mf.ImputationKernel.__init__.__code__.co_varnames
         }
-        self.mice_kwargs = {key: value for key, value in kwargs.items() if key not in self.kernel_kwargs.keys()}
+        self.mice_kwargs = {key: value for key, value in kwargs.items() if key not in self.kernel_kwargs}
 
     def fit(self, X: pd.DataFrame, y: None = None, **kwargs):
         data = X.reset_index(drop=True)
