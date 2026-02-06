@@ -25,8 +25,8 @@ def correlation_ratio(*samples: pd.Series) -> float:
     grand_mean = np.nanmean(all_values)
 
     # Calculate between and total sums of squares
-    ss_between = np.sum([sample.count() * (np.nanmean(sample) - grand_mean) ** 2 for sample in samples], dtype=np.float64)
-    ss_total = np.nansum((all_values - grand_mean) ** 2, dtype=np.float64)
+    ss_between = np.sum([sample.count() * (np.nanmean(sample) - grand_mean) ** 2 for sample in samples], dtype="float")
+    ss_total = np.nansum((all_values - grand_mean) ** 2, dtype="float")
 
     # Calculate eta-squared, set to 1 if all values are equal
     eta_squared = ss_between / ss_total if ss_total != 0 else 1.0
