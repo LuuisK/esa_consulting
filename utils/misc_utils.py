@@ -72,3 +72,9 @@ def turn_cats_to_continuous(data: pd.DataFrame, treat_cat_as_continuous: Iterabl
     treat_cat_as_continuous = [var for var in treat_cat_as_continuous if var in data.columns]
     data[treat_cat_as_continuous] = data[treat_cat_as_continuous].apply(lambda col: col.cat.codes.replace(-1, np.nan))
     return data
+
+
+def stack_dataframes(dataframes: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Turn dataframes with equal index and column labels into one dataframe with two column index levels."""
+    all_vars = next(iter(dataframes.values())).columns
+    return pd.concat(dataframes, axis=1).swaplevel(0, 1, axis=1).reindex(all_vars, axis=1, level=0)

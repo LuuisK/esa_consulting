@@ -32,15 +32,18 @@ def make_plot_2d_data(data: pd.DataFrame, cluster_labels: pd.Series[pd.Categoric
 
     # Color based on clustering if provided
     aes_kwargs = {}
-    if cluster_labels is not None:
+    geom_point_kwargs = {}
+    if cluster_labels is None:
+        geom_point_kwargs |= dict(fill=default_color_ggplot)
+    else:
         data["cluster"] = cluster_labels
-        aes_kwargs |= dict(fill="cluster", color="cluster")
+        aes_kwargs |= dict(fill="cluster")
 
     # Create plot
     plot = (
         p9.ggplot(data)
         + p9.aes(x=data.columns[0], y=data.columns[1], **aes_kwargs)
-        + p9.geom_point(alpha=0.3, fill=default_color_ggplot, color="none")
+        + p9.geom_point(alpha=0.3, **geom_point_kwargs, color="none")
         + theme_ggplot
     )
     return plot
@@ -144,7 +147,7 @@ def make_plot_scree(pca: PCA) -> p9.ggplot:
         + p9.scale_fill_manual(values={"": "steelblue"}, name=" ", labels={"": "Explained variance\nratio"})
         + p9.scale_color_manual(values={"": "black"}, name=" ", labels={"": "Cumulative explained\nvariance ratio"})
         + theme_ggplot
-        + p9.theme(legend_position="inside", legend_position_inside=(1, 0.5), legend_direction="vertical")
+        + p9.theme(legend_position="bottom", legend_direction="horizontal")
     )
     return plot_scree
 
@@ -153,7 +156,7 @@ def make_plot_cv(cv_model: GridSearchCV, by: str | None = None, group: str | Non
     """
     Creates a plot of cross validation performances for different parameters.
     """
-    by = next(iter(cv_model.param_grid[0].keys())) if by is None else by  # type: ignore
+    by = next(iter(cv_model.param_grid[0])) if by is None else by  # type: ignore
 
     data_ggplot = pd.DataFrame(cv_model.cv_results_["params"]).assign(
         **{
@@ -268,67 +271,3 @@ def make_plot_contingency_table(
         + theme_ggplot
     )
     return cont_table_plot
-
-
-# def plot_reduced_data(
-#     data_loadings: pd.DataFrame,
-#     var_loadings: pd.DataFrame | None = None,
-#     cluster_labels=None,
-#     comp_x_id: int = 0,
-#     comp_y_id: int = 1,
-#     var_marker: str = "x",
-# ) -> p9.ggplot:
-#     """
-#     Plots data after dimensionality reduction.
-
-#     The columns are the ordered coordinates of reduced dimensionality.
-#     """
-#     guide = "legend" if cluster_labels is not None else None
-#     cluster_labels = len(data_loadings) * [0] if cluster_labels is None else cluster_labels
-
-#     # Create data for ggplot
-#     data_ggplot = data_loadings.rename(lambda x: f"comp_{x}", axis=1).assign(
-#         **{
-#             "cluster": pd.Categorical(
-#                 [f"cluster {i}" if i >= 0 else np.nan for i in cluster_labels],
-#                 categories=[f"cluster {i}" for i in sorted(set(cluster_labels) - {-1})],
-#             )
-#         }
-#     )
-
-#     # Create plot
-#     plot = (
-#         p9.ggplot(data_ggplot, p9.aes(x=f"comp_{comp_x_id}", y=f"comp_{comp_y_id}", fill="cluster"))
-#         + p9.geom_point(alpha=0.8, stroke=0)
-#         + p9.scale_fill_brewer(type="qualitative", palette="Set2", na_value="white", guide=guide)
-#         + theme_ggplot
-#     )
-#     if var_loadings is not None:
-#         var_ggplot = (
-#             None
-#             if var_loadings is None
-#             else ((var_loadings * data_loadings.abs().max()).rename(lambda x: f"comp_{x}", axis=1).reset_index())
-#         )
-#         if var_marker == "label":
-#             plot += p9.geom_label(
-#                 p9.aes(x=f"comp_{comp_x_id}", y=f"comp_{comp_y_id}", label="variable", group="variable"),
-#                 size=5,
-#                 data=var_ggplot,
-#                 inherit_aes=False,
-#                 # position=p9.position_jitter()
-#             )
-#         else:
-#             plot += p9.geom_point(data=var_ggplot, fill="green", color="green", alpha=1, shape=var_marker)
-
-#     return plot
-
-
-# # Visualize data and variables in coordinates of the first two components
-# coordinates_plot = plot_reduced_data(
-#     data_loadings,
-#     var_loadings,
-#     comp_x_id=0,
-#     comp_y_id=1,
-#     var_marker="label",
-#     # var_marker="x",
-# )

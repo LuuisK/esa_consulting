@@ -22,7 +22,7 @@ def create_vars_info(var_labels: dict[str, str], value_labels: dict[str, dict[fl
     # Add dictionaries of value labels
     vars_info["labels"] = pd.NA
     for var in vars_info["name"]:
-        if var in value_labels.keys():
+        if var in value_labels:
             vars_info.loc[vars_info["name"] == var, "labels"] = [value_labels[var]]
         else:
             vars_info.loc[vars_info["name"] == var, "labels"] = [{}]
@@ -50,7 +50,7 @@ def sort_groups_vars_info(vars_info: pd.DataFrame, groups_by_name: dict[str, lis
 
     # Assign groups to variables
     vars_info["group"] = pd.Categorical(
-        values=len(vars_info) * [pd.NA], categories=pd.Series(groups_by_name.keys(), dtype=pd.StringDtype())
+        values=len(vars_info) * [pd.NA], categories=pd.Series(list(groups_by_name), dtype=pd.StringDtype())
     )
     for group_name, group_vars in groups_by_name.items():
         vars_info.loc[vars_info["name"].isin(group_vars), "group"] = group_name
@@ -80,7 +80,7 @@ def sort_types_vars_info(vars_info: pd.DataFrame, types_by_name: dict[str, list[
 
     # Assign types to variables
     vars_info["type"] = pd.Categorical(
-        values=len(vars_info) * [pd.NA], categories=pd.Series(types_by_name.keys(), dtype=pd.StringDtype())
+        values=len(vars_info) * [pd.NA], categories=pd.Series(list(types_by_name), dtype=pd.StringDtype())
     )
     for type_name, type_vars in types_by_name.items():
         vars_info.loc[vars_info["name"].isin(type_vars), "type"] = type_name
@@ -156,7 +156,7 @@ def impute_data(
     kernel_kwargs = {
         key: value for key, value in kwargs.items() if key in mf.ImputationKernel.__init__.__code__.co_varnames
     }
-    mice_kwargs = {key: value for key, value in kwargs.items() if key not in kernel_kwargs.keys()}
+    mice_kwargs = {key: value for key, value in kwargs.items() if key not in kernel_kwargs}
 
     # Change PMM strategy for categorical variables to avoid numerical errors. See
     # https://github.com/AnotherSamWilson/miceforest/issues/96#issuecomment-3242644783.
