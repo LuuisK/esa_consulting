@@ -147,7 +147,7 @@ def make_plot_scree(pca: PCA) -> p9.ggplot:
         + p9.scale_fill_manual(values={"": "steelblue"}, name=" ", labels={"": "Explained variance\nratio"})
         + p9.scale_color_manual(values={"": "black"}, name=" ", labels={"": "Cumulative explained\nvariance ratio"})
         + theme_ggplot
-        + p9.theme(legend_position="inside", legend_position_inside=(1, 0.5), legend_direction="vertical")
+        + p9.theme(legend_position="bottom", legend_direction="horizontal")
     )
     return plot_scree
 
