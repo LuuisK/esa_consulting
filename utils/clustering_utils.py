@@ -46,6 +46,13 @@ def predict_clustering_labels(model: BaseEstimator, data: pd.DataFrame) -> pd.Se
     )
 
 
+def predict_clustering_proba(model: BaseEstimator, data: pd.DataFrame) -> pd.DataFrame:
+    """Predicts cluster probabilities for a dataset using a clustering model."""
+    return pd.DataFrame(data=model.predict_proba(data), index=data.index.copy()).rename(  # type: ignore
+        columns=lambda x: f"cluster_{x}"
+    )
+
+
 def get_cluster_means(model: GaussianMixture, pca: BlockPCA) -> pd.DataFrame:
     """Backtransform cluster means from PCA space into variable space."""
     columns = (f"{group}_comp_{i}" for group in pca.var_groups for i in range(pca.n_components_per_group[group]))
