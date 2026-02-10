@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import itertools
-from typing import Self
+from typing import Any, Self
 
 import numpy as np
 import pandas as pd
@@ -48,6 +48,10 @@ class BlockPCA(_BasePCA):
         ("{group}_comp_{i}" for group in self.var_groups for i in self.n_components_per_group[group]). Input y is
         ignored. Input keyword arguments are passed to all PCA constructors.
         """
+
+        # Set feature_names_in_
+        self._check_feature_names(X, reset=True)
+
         data = X
 
         for group, group_vars in self.var_groups.items():
@@ -73,6 +77,11 @@ class BlockPCA(_BasePCA):
         # self.noise_variance_ = np.array([])
 
         return self
+
+    def get_feature_names_out(self, input_features: Any = None) -> np.ndarray:
+        return np.array(
+            [f"{group}_comp_{i}" for group in self.var_groups for i in range(self.n_components_per_group[group])]
+        )
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """
