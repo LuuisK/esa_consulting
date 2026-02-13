@@ -96,7 +96,7 @@ def _check_and_impute_rule(
 
 
 def check_and_impute(
-    data: pd.DataFrame, rules: list[Rule], failure_strategy: Literal["error", "drop"] | None = None
+    data: pd.DataFrame, rules: list[Rule], failure_strategy: Literal["error", "drop"] | None = None, verbose: bool = False
 ) -> pd.DataFrame:
     """
     Enforces conditions by imputing and possibly raising an error or removing observations.
@@ -109,19 +109,23 @@ def check_and_impute(
         What to do when an observation does not conform to a rule.
     """
     data = data.copy()
-    if failure_strategy == "drop":
-        initial_len = len(data)
+    
+    label = "dropped" if failure_strategy == "drop" else "failed"
 
+    imputation_count: int = 0
+    failure_count: int = 0
     for rule in rules:
-        data, imputation_count, failure_count = _check_and_impute_rule(data, rule, failure_strategy)
+        data, imputation_sum, failure_sum = _check_and_impute_rule(data, rule, failure_strategy)
+        imputation_count += imputation_sum
+        failure_count += failure_sum
 
-        # Print message
-        shortened_rule = textwrap.shorten(str(rule), width=85, placeholder="...")
-        if failure_strategy == "error" and failure_count != 0:
-            raise AssertionError(f"Rule {shortened_rule} failed {failure_count} times.")
-        label = "dropped" if failure_strategy == "drop" else "failed"
-        print(f"{imputation_count} imputed, {failure_count} {label}, used rule {shortened_rule}")
+        if verbose:
+            # Print message
+            shortened_rule = textwrap.shorten(str(rule), width=85, placeholder="...")
+            if failure_strategy == "error" and failure_sum != 0:
+                raise AssertionError(f"Rule {shortened_rule} failed {failure_sum} times.")
+            print(f"{imputation_sum} imputed, {failure_sum} {label}, used rule {shortened_rule}")
 
     if failure_strategy == "drop":
-        print(f"\nTOTAL: {initial_len - len(data)} dropped")
+        print(f"\nTOTAL: {imputation_count} imputed, {failure_count} {label}")
     return data
