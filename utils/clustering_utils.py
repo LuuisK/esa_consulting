@@ -27,6 +27,7 @@ from sklearn.mixture import GaussianMixture
 from utils.dimensionality_reduction_utils import BlockPCA
 
 pd.options.mode.copy_on_write = True
+pd.options.future.infer_string = True
 
 
 def print_clustering_info(cluster_labels: pd.Series[pd.CategoricalDtype], sort_by_size: bool = False) -> None:

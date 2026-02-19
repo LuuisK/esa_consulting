@@ -11,6 +11,7 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 
 pd.options.mode.copy_on_write = True
+pd.options.future.infer_string = True
 
 
 class MICEForest(TransformerMixin, BaseEstimator):
