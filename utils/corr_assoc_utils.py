@@ -12,6 +12,7 @@ from scipy.stats import kruskal, spearmanr
 from scipy.stats.contingency import association, chi2_contingency
 
 pd.options.mode.copy_on_write = True
+pd.options.future.infer_string = True
 
 
 def correlation_ratio(*samples: pd.Series) -> float:

@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 pd.options.mode.copy_on_write = True
+pd.options.future.infer_string = True
 
 
 def create_vars_info(var_labels: dict[str, str], value_labels: dict[str, dict[float, str]]) -> pd.DataFrame:

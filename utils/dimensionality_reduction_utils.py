@@ -12,6 +12,7 @@ from sklearn.decomposition import PCA
 from sklearn.decomposition._base import _BasePCA
 
 pd.options.mode.copy_on_write = True
+pd.options.future.infer_string = True
 
 
 class BlockPCA(_BasePCA):

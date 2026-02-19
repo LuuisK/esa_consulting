@@ -13,6 +13,7 @@ from sklearn.model_selection import GridSearchCV
 from utils.corr_assoc_utils import create_corr_assoc_matrix
 
 pd.options.mode.copy_on_write = True
+pd.options.future.infer_string = True
 
 
 # Create ggplot theme

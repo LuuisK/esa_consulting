@@ -7,6 +7,8 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
+pd.options.mode.copy_on_write = True
+pd.options.future.infer_string = True
 
 @dataclass
 class ImplicationRule:

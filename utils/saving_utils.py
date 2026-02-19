@@ -9,6 +9,9 @@ import plotnine as p9
 from plotnine.composition import Compose
 from plotnine.exceptions import PlotnineWarning
 
+pd.options.mode.copy_on_write = True
+pd.options.future.infer_string = True
+
 
 def check_save_path(save_path: str | Path, allow_overwrite: bool = True, create_folder: bool = True) -> None:
     """

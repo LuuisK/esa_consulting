@@ -11,6 +11,7 @@ from sklearn.manifold import MDS, TSNE, Isomap, LocallyLinearEmbedding, Spectral
 from umap import UMAP
 
 pd.options.mode.copy_on_write = True
+pd.options.future.infer_string = True
 
 # Create projection method types, lists, and
 DeterministicProjection = Isomap
