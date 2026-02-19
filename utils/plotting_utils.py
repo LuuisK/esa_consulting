@@ -11,6 +11,7 @@ from sklearn.mixture._base import BaseMixture
 from sklearn.model_selection import GridSearchCV
 
 from utils.corr_assoc_utils import create_corr_assoc_matrix
+from utils.misc_utils import contingency_table
 
 pd.options.mode.copy_on_write = True
 pd.options.future.infer_string = True
@@ -262,7 +263,7 @@ def make_plot_contingency_table(
     categorical variable values1, in percentages for each value of values1. The indices of values1 and values2 should
     match.
     """
-    cont_table = pd.crosstab(values1, values2, dropna=False, normalize="index")
+    cont_table = contingency_table(values1, values2, dropna=False, normalize="index")
     data_ggplot = pd.DataFrame({"entailment": cont_table.stack(future_stack=True)}).reset_index(names=[name1, name2])
 
     cont_table_plot = (

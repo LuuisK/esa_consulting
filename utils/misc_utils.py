@@ -79,3 +79,25 @@ def stack_dataframes(dataframes: dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Turn dataframes with equal index and column labels into one dataframe with two column index levels."""
     all_vars = next(iter(dataframes.values())).columns
     return pd.concat(dataframes, axis=1).swaplevel(0, 1, axis=1).reindex(all_vars, axis=1, level=0)
+
+
+def contingency_table(index: pd.Series, columns: pd.Series, dropna: bool = False, **kwargs) -> pd.DataFrame:
+    """
+    Contingency table.
+
+    pd.crosstab that does not ignore NaN.
+    """
+    assert pd.options.future.infer_string
+
+    index = index.astype("str").fillna("NaN")
+    columns = columns.astype("str").fillna("NaN")
+
+    crosstab = pd.crosstab(index, columns, dropna=False, **kwargs)
+    crosstab = crosstab.loc[
+        [x for x in crosstab.index if x != "NaN"] + ["NaN"], [x for x in crosstab.columns if x != "NaN"] + ["NaN"]
+    ]
+
+    if dropna:
+        crosstab = crosstab.drop(index="NaN", columns="NaN")
+
+    return crosstab
