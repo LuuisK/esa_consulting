@@ -24,9 +24,9 @@ def create_vars_info(var_labels: dict[str, str], value_labels: dict[str, dict[fl
     vars_info["labels"] = pd.NA
     for var in vars_info["name"]:
         if var in value_labels:
-            vars_info.loc[vars_info["name"] == var, "labels"] = [value_labels[var]]
+            vars_info.loc[vars_info["name"].eq(var), "labels"] = [value_labels[var]]
         else:
-            vars_info.loc[vars_info["name"] == var, "labels"] = [{}]
+            vars_info.loc[vars_info["name"].eq(var), "labels"] = [{}]
 
     return vars_info
 
@@ -105,15 +105,15 @@ def convert_data_types(data: pd.DataFrame, vars_info: pd.DataFrame) -> pd.DataFr
     data[categorical_vars] = data[categorical_vars].astype("category")
 
     # # Recode binary to 0-1 in data and in vars_info["labels"]
-    # binary_vars: pd.Series[pd.StringDtype] = vars_info.loc[vars_info["type"] == "binary", "name"]
+    # binary_vars: pd.Series[pd.StringDtype] = vars_info.loc[vars_info["type"].eq("binary"), "name"]
     # not_0_1 = [var for var in binary_vars if set(data[var].cat.categories) != set((0, 1))]
     # for var in not_0_1:
     #     old_cats = data[var].cat.categories
     #     new_cats = [0, 1]
-    #     old_value_dict = vars_info.loc[vars_info["name"] == var, "labels"].item()
+    #     old_value_dict = vars_info.loc[vars_info["name"].eq(var), "labels"].item()
     #     new_value_dict = {x: old_value_dict.get(old_cats[x], old_cats[x]) for x in new_cats}
     #     data[var] = data[var].cat.rename_categories(new_cats)
-    #     vars_info.loc[vars_info["name"] == var, "labels"] = [new_value_dict]
+    #     vars_info.loc[vars_info["name"].eq(var), "labels"] = [new_value_dict]
 
     return data
 
