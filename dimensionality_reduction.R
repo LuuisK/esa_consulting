@@ -1,52 +1,74 @@
-#' Dimensionality reduction script.
-#'
-#' Uses factor analysis to find latent dimensions. Creates graphs visualizing
-#' the latent dimensions.
+# Notebook for dimensionality reduction
+#' Run notebooks in the following order: preprocessing.ipynb -> imputation.R ->
+#' dimensionality_reduction.R -> gmm_clustering.ipynb
 
-# Load required packages and functions from funcs.R
-library(mice)
-library(missMDA)
-library(FactoMineR)
-library(readr)
-library(dplyr)
-library(tibble)
+# Load required packages
+library(checkmate) # assertions
+library(dplyr) # data-frame methods
+library(FactoMineR) # MFA
 
-source("funcs.R")
+source(file.path("utils/saving_utils.R"))
 
 
-# Hardcoded paths, change to apply to new data
-data_folder <- file.path("data", "preprocessed")
-outputs_folder <- "outputs"
-data_filename <- "esa_2018_2021.rds"
-vars_info_filename <- "vars_info.rds"
+# Read in data
+data_discov <- load_data_bundle(file.path("data/imputed/data_discov_imputed"))
+data_valid <- load_data_bundle(file.path("data/imputed/data_valid_imputed"))
+
+# Set outputs folder
+outputs_folder <- "outputs/dim_red"
+
+# Set number of MFA components
+n_comp <- 10
 
 
-# Load dataset and variable information
-data_path <- file.path(data_folder, data_filename)
-esa_2018_2021 <- read_rds(data_path)
+#' Function for MFA
+do_mfa <- function(data, n_comp) {
+    assert_list(data)
+    assert_int(n_comp, lower = 0)
 
-vars_info_path <- file.path(data_folder, vars_info_filename)
-vars_info <- read_rds(vars_info_path)
+    vars_sorted <- data$meta |> arrange(group) |> pull(name)
+    data_sorted <- data$data[vars_sorted]
+    type_fn <- function(type) {
+        if (all(type == "continuous")) {
+            "s"
+        } else if (all(type == "nominal" | type == "ordinal")) {
+            "n"
+        } else {
+            "m"
+        }
+    }
+    group_info <- data$meta |>
+        group_by(group) |>
+        summarize(size = n(), type = type_fn(type))
 
-# Separate out the alcohol variables
-alcohol_vars <- vars_info %>% filter(group == "alcohol") %>% pull(name)
-alcohol_data <- esa_2018_2021 %>% select(all_of(alcohol_vars))
+    MFA(
+        data_sorted,
+        group = group_info$size,
+        type = group_info$type,
+        ncp = n_comp
+    )
+}
 
-# Impute completely random NAs in dataset
-imputed_data <- imputeFAMD(
-  alcohol_data,
-  ncp = 2,
-  method = "Regularized",
-  coeff.ridge = 1
-)
+# Fit models
+mfa_discov <- do_mfa(data_discov, n_comp = n_comp)
+mfa_valid <- do_mfa(data_valid, n_comp = n_comp)
+
+# Apply models
+data_discov_mfa <- tibble(mfa_discov$ind$coord)
+data_valid_mfa <- tibble(mfa_discov$ind$coord)
+vars_sorted <- data_valid$meta |> arrange(group) |> pull(name)
+data_tf_mfa <- mfa_discov |> predict(data_valid$data[vars_sorted])
 
 
-# Conduct factor analysis for mixed data
-n_latent <- 10
-alcohol_famd <- FAMD(
-  alcohol_data,
-  ncp = n_latent,
-  graph = TRUE,
-  tab.disj = imputed_data$tab.disj
-)
-plot(alcohol_famd)
+# Create plots ...
+...
+
+
+# Save models
+save_object(mfa_discov, save_path = file.path(outputs_folder, "mfa_discov.rds"))
+save_object(mfa_valid, save_path = file.path(outputs_folder, "mfa_valid.rds"))
+
+# Save transformed data
+save_data_bundle(data_discov_mfa, file.path(outputs_folder, "data_discov_mfa"))
+save_data_bundle(data_valid_mfa, file.path(outputs_folder, "data_valid_mfa"))
+save_data_bundle(data_tf_mfa, file.path(outputs_folder, "data_tf_mfa"))

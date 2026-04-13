@@ -1,12 +1,12 @@
 # Data files
 data/raw/*
-data/readin/*
 data/preprocessed/*
+data/imputed/*
 outputs/*
 
 !data/raw/.gitkeep
-!data/readin/.gitkeep
 !data/preprocessed/.gitkeep
+!data/imputed/.gitkeep
 !outputs/.gitkeep
 
 # Python-generated files

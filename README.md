@@ -71,12 +71,12 @@ To get started:
     The order of the notebooks is as follows:
 
     ```bash
-    preprocessing.ipynb -> (plot_corr_assoc.ipynb ->) dimensionality_reduction.ipynb -> clustering.ipynb
+    preprocessing.ipynb -> (plot_corr_assoc.ipynb ->) imputation.R -> dimensionality_reduction.R -> clustering.ipynb
     ```
 
 4. **Explore the results**
 
-    Check the generated output files in the output directory (the default is `results`).
+    Check the generated output files in the output directory (the default is `outputs`).
 
 </details>
 

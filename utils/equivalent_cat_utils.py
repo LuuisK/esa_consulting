@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import textwrap
 import warnings
 from collections import Counter
@@ -7,6 +9,8 @@ from typing import Any, Literal
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+
+from utils.saving_utils import DatasetBundle
 
 pd.options.mode.copy_on_write = True
 pd.options.future.infer_string = True
@@ -52,27 +56,43 @@ class EquivalenceRule:
 type Rule = ImplicationRule | EquivalenceRule
 
 
-def impute_value(data: pd.DataFrame, mask: MaskType, var: str, value: Any) -> pd.DataFrame:
+def impute_value(data: DatasetBundle, mask, var: str, value: Any) -> DatasetBundle:
     """
     Impute variable var in data with value.
 
     Note: If the variable is categorical and the category `value` doesn't exist it is created with a warning.
     """
-    series = data[var]
+    series = data.data[var]
     if isinstance(series.dtype, pd.CategoricalDtype):
         if value not in series.cat.categories:
-            warnings.warn(f"Created new category {value} for {var}")
-            data[var] = series.cat.add_categories([value])
-    data.loc[mask, var] = value
+            warnings.warn(f"Created new category {value} for {var}.")
+            data.data[var] = series.cat.add_categories([value])
+    data.data.loc[mask, var] = value
+
+    imputed_cat = "rule imputed"
+    if data.na is not None:
+        if imputed_cat not in data.na[var].cat.categories:
+            data.na[var] = data.na[var].cat.add_categories([imputed_cat])
+        data.na.loc[mask, var] = imputed_cat
+
+    return data
+
+
+def drop_observations(data: DatasetBundle, drop_mask) -> DatasetBundle:
+    data.data = data.data.loc[~drop_mask]
+
+    if data.na is not None:
+        data.na = data.na.loc[~drop_mask]
+
     return data
 
 
 def _enforce_rule(
-    data: pd.DataFrame,
+    data: DatasetBundle,
     rule: Rule,
     na_strategy: Literal["impute", "error"] | None = "impute",
     failure_strategy: Literal["drop", "error"] | None = None,
-) -> tuple[pd.DataFrame, int, int]:
+) -> tuple[DatasetBundle, int, int]:
     """
     Enforces one rule by possibly imputing, dropping observations, or raising errors.
 
@@ -85,18 +105,39 @@ def _enforce_rule(
 
     for implication_rule in rule.to_implication_rules() if isinstance(rule, EquivalenceRule) else [rule]:
         # Build condition under which rule is asserted
-        condition = pd.Series(True, index=data.index)
+        condition = pd.Series(True, index=data.data.index)
         for var, value in implication_rule.implies.items():
             # Ensure value is a list
             value = value if isinstance(value, list) else [value]
-            condition &= data[var].isin(value)
+
+            # Error if any value of `implies` is not assignable to (a copy of) its variable
+            series = data.data[var].copy()
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "error", message="Setting an item of incompatible dtype.", category=FutureWarning
+                )
+                try:
+                    series.iloc[0] = value[0]
+                except TypeError:
+                    raise TypeError(
+                        f"Variable `{var}` has value `{value}`, which is not an existing category, in `implies` "
+                        f"argument of rule {implication_rule}."
+                    )
+                except FutureWarning:
+                    raise TypeError(
+                        f"Variable `{var}` has value `{value}`, which has incompatible dtype, in `implies` argument of "
+                        f"rule {implication_rule}."
+                    )
+
+            # Finally build condition
+            condition &= data.data[var].isin(value)
 
         for var, value in implication_rule.is_implied.items():
             # Ensure value is a list
             value = value if isinstance(value, list) else [value]
 
-            # Deal with NAs
-            na_mask = condition & data[var].isna()
+            # Deal with NAs (encoded by negative values)
+            na_mask = condition & data.data[var].isna()
             if (na_sum := na_mask.sum()) != 0:
                 na_count += na_sum
                 if na_strategy == "impute":
@@ -107,11 +148,11 @@ def _enforce_rule(
                         data = impute_value(data, na_mask, var, value[0])
 
             # Deal with failures
-            failure_mask = condition & ~data[var].isna() & ~data[var].isin(value)
+            failure_mask = condition & ~data.data[var].isna() & ~data.data[var].isin(value)
             if (failure_sum := failure_mask.sum()) != 0:
                 failure_count += failure_sum
                 if failure_strategy == "drop":
-                    data = data.loc[~failure_mask]
+                    data = drop_observations(data, failure_mask)
 
     # Warn if imputation is ignored because of several possible imputation values
     if len(imputation_warning) != 0:
@@ -125,12 +166,12 @@ def _enforce_rule(
 
 
 def enforce_rules(
-    data: pd.DataFrame,
+    data: DatasetBundle,
     rules: list[Rule],
     na_strategy: Literal["impute", "error"] | None = "impute",
     failure_strategy: Literal["drop", "error"] | None = None,
     verbose: bool = False,
-) -> pd.DataFrame:
+) -> DatasetBundle:
     """
     Enforces rules by possibly imputing, dropping observations, or raising errors.
 
