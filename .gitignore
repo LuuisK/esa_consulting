@@ -7,6 +7,7 @@ outputs/*
 !data/raw/.gitkeep
 !data/preprocessed/.gitkeep
 !data/imputed/.gitkeep
+!data/dim_red/.gitkeep
 !outputs/.gitkeep
 
 # Python-generated files

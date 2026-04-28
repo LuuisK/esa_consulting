@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import builtins
 import itertools
 import warnings
+from collections.abc import Iterable
 from typing import Any
 
 import miceforest as mf
@@ -29,9 +31,9 @@ def create_meta(
     data.meta["labels"] = pd.NA
     for var in data.meta["name"]:
         if var in value_labels:
-            data.meta.loc[data.meta["name"].eq(var), "labels"] = [value_labels[var]]
+            data.meta.loc[lambda x: x["name"].eq(var), "labels"] = [value_labels[var]]
         else:
-            data.meta.loc[data.meta["name"].eq(var), "labels"] = [{}]
+            data.meta.loc[lambda x: x["name"].eq(var), "labels"] = [{}]
 
     return data
 
@@ -62,7 +64,7 @@ def sort_groups_meta(data: DatasetBundle, groups_by_name: dict[str, list[str]]) 
         values=len(data.meta) * [pd.NA], categories=pd.Series(list(groups_by_name), dtype="str")
     )
     for group_name, group_vars in groups_by_name.items():
-        data.meta.loc[data.meta["name"].isin(group_vars), "group"] = group_name
+        data.meta.loc[lambda x: x["name"].isin(group_vars), "group"] = group_name
 
     return data
 
@@ -95,7 +97,7 @@ def sort_types_meta(data: DatasetBundle, types_by_name: dict[str, list[str]]) ->
         values=len(data.meta) * [pd.NA], categories=pd.Series(list(types_by_name), dtype="str")
     )
     for type_name, type_vars in types_by_name.items():
-        data.meta.loc[data.meta["name"].isin(type_vars), "type"] = type_name
+        data.meta.loc[lambda x: x["name"].isin(type_vars), "type"] = type_name
 
     return data
 
@@ -120,6 +122,31 @@ def create_missing_info(data: DatasetBundle, na_labels: dict[Any, str]) -> Datas
     return data
 
 
+def impute_allowed_skip(data: DatasetBundle, imp_val: dict[str, Any]) -> DatasetBundle:
+    """
+    Impute allowed skips of a dataset with a default value.
+
+    By default imputs the value 0. Other values need to be specified in `imp_val`.
+    """
+    # Return a modified copy of the input
+    data = data.copy()
+
+    if data.na is None:
+        raise ValueError("'data.na' may not be None.")
+
+    for var in data.data.columns:
+        mask = data.na[var].eq("allowed skip")
+
+        data.data.loc[mask, var] = imp_val.get(var, 0)
+
+        imputed_cat = "imputed skip"
+        if imputed_cat not in data.na[var].cat.categories:
+            data.na[var] = data.na[var].cat.add_categories([imputed_cat])
+        data.na.loc[mask, var] = imputed_cat
+
+    return data
+
+
 def convert_data_types(data: DatasetBundle) -> DatasetBundle:
     """
     Converts the data types if necessary.
@@ -135,10 +162,10 @@ def convert_data_types(data: DatasetBundle) -> DatasetBundle:
 
     # Convert categorical variables to factors with string categories
     categorical_vars: list[str] = data.meta.loc[
-        data.meta["type"].isin(["binary", "nominal", "ordinal"]), "name"
+        lambda x: x["type"].isin(["binary", "nominal", "ordinal"]), "name"
     ].to_list()
-    ordered_vars: list[str] = data.meta.loc[~data.meta["type"].eq("nominal"), "name"].to_list()
-    # ordered_vars: list[str] = data.meta.loc[data.meta["type"].eq("ordinal"), "name"].to_list()  # TODO: binary too?
+    ordered_vars: list[str] = data.meta.loc[lambda x: ~x["type"].eq("nominal"), "name"].to_list()
+    # ordered_vars: list[str] = data.meta.loc[lambda x: x["type"].eq("ordinal"), "name"].to_list()  # TODO: binary too?
     for var in categorical_vars:
         # Change categories to strings
         cats_old = data.data[var].drop_duplicates().dropna().sort_values()
@@ -150,30 +177,44 @@ def convert_data_types(data: DatasetBundle) -> DatasetBundle:
         data.data[var] = data.data[var].map(cat_map).astype(cat_dtype)
 
         # Update keys in label dictionary
-        labels_old = data.meta.loc[data.meta["name"].eq(var), "labels"].item()
+        labels_old = data.meta.loc[lambda x: x["name"].eq(var), "labels"].item()
         labels_new = {cat_map.get(key, key): value for key, value in labels_old.items()}
-        data.meta.loc[data.meta["name"].eq(var), "labels"] = [labels_new]
+        data.meta.loc[lambda x: x["name"].eq(var), "labels"] = [labels_new]
 
     return data
 
 
+def get_description(meta: pd.DataFrame, var: str, slice: int | slice | None = None) -> str:
+    """Get the sliced description of a variable."""
+    if slice is None:
+        slice = builtins.slice(None, None, None)
+    elif isinstance(slice, int):
+        slice = builtins.slice(slice, slice + 1)
+    description = meta.loc[lambda y: y["name"].eq(var), "description"].item()
+    description_sliced = description.split()[slice]
+    return " ".join(description_sliced)
+
+
 def remove_variables(data: DatasetBundle, drop_vars: list[str] | None = None) -> DatasetBundle:
     """
-    Removes specified features from both the data and variable information data-frames.
+    Removes specified features from both the data.
     """
     # Return a modified copy of the input
     data = data.copy()
 
-    if data.meta is None:
-        raise ValueError("'data.meta' may not be None.")
+    if drop_vars is None:
+        return data
 
-    if drop_vars is not None:
-        # Remove specified unimportant variables
-        data.data = data.data.drop(columns=drop_vars, errors="ignore")
-        data.meta = data.meta[~data.meta["name"].isin(drop_vars)].reset_index(drop=True)
+    # Remove specified unimportant variables
+    data.data = data.data.drop(columns=drop_vars, errors="ignore")
 
-    data.meta["type"] = data.meta["type"].cat.remove_unused_categories()
-    data.meta["group"] = data.meta["group"].cat.remove_unused_categories()
+    if data.meta is not None:
+        data.meta = data.meta[lambda x: ~x["name"].isin(drop_vars)].reset_index(drop=True)
+        data.meta["type"] = data.meta["type"].cat.remove_unused_categories()
+        data.meta["group"] = data.meta["group"].cat.remove_unused_categories()
+
+    if data.na is not None:
+        data.na = data.na.drop(columns=drop_vars, errors="ignore")
 
     return data
 

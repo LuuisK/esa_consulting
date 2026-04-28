@@ -214,4 +214,8 @@ def enforce_rules(
     # Print total message
     print(("\n" if verbose else "") + f"TOTAL: {na_count} {na_label}, {failure_count} {failure_label}")
 
+    data.data = data.data.reset_index(drop=True)
+    if data.na is not None:
+        data.na = data.na.reset_index(drop=True)
+
     return data

@@ -73,15 +73,14 @@ data_valid_imputed <- list(
     meta = data_valid$meta,
     na = data_valid$na
 )
-data_tf_imputed <- list(
-    data = mice::complete(
-        mice.mids(mice_discov, newdata = data_valid$data),
-        action = 1
-    ),
-    meta = data_valid$meta,
-    na = data_valid$na
-)
-
+# data_tf_imputed <- list(
+#     data = mice::complete(
+#         mice.mids(mice_discov, newdata = data_valid$data),
+#         action = 1
+#     ),
+#     meta = data_valid$meta,
+#     na = data_valid$na
+# )
 
 # Save models
 save_object(
@@ -102,7 +101,7 @@ save_data_bundle(
     data_valid_imputed,
     file.path(outputs_folder, "data_valid_imputed")
 )
-save_data_bundle(
-    data_tf_imputed,
-    file.path(outputs_folder, "data_tf_imputed")
-)
+# save_data_bundle(
+#     data_tf_imputed,
+#     file.path(outputs_folder, "data_tf_imputed")
+# )

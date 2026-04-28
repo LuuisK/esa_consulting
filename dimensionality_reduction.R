@@ -15,7 +15,7 @@ data_discov <- load_data_bundle(file.path("data/imputed/data_discov_imputed"))
 data_valid <- load_data_bundle(file.path("data/imputed/data_valid_imputed"))
 
 # Set outputs folder
-outputs_folder <- "outputs/dim_red"
+outputs_folder <- "data/dim_red"
 
 # Set number of MFA components
 n_comp <- 10
@@ -31,7 +31,7 @@ do_mfa <- function(data, n_comp) {
     type_fn <- function(type) {
         if (all(type == "continuous")) {
             "s"
-        } else if (all(type == "nominal" | type == "ordinal")) {
+        } else if (all(type %in% c("nominal", "ordinal", "binary"))) {
             "n"
         } else {
             "m"
@@ -53,15 +53,9 @@ do_mfa <- function(data, n_comp) {
 mfa_discov <- do_mfa(data_discov, n_comp = n_comp)
 mfa_valid <- do_mfa(data_valid, n_comp = n_comp)
 
-# Apply models
-data_discov_mfa <- tibble(mfa_discov$ind$coord)
-data_valid_mfa <- tibble(mfa_discov$ind$coord)
-vars_sorted <- data_valid$meta |> arrange(group) |> pull(name)
-data_tf_mfa <- mfa_discov |> predict(data_valid$data[vars_sorted])
-
-
-# Create plots ...
-...
+# Apply models   # TODO: create plots
+data_discov_mfa <- list(data = as_tibble(mfa_discov$ind$coord))
+data_valid_mfa <- list(data = as_tibble(mfa_valid$ind$coord))
 
 
 # Save models
@@ -71,4 +65,3 @@ save_object(mfa_valid, save_path = file.path(outputs_folder, "mfa_valid.rds"))
 # Save transformed data
 save_data_bundle(data_discov_mfa, file.path(outputs_folder, "data_discov_mfa"))
 save_data_bundle(data_valid_mfa, file.path(outputs_folder, "data_valid_mfa"))
-save_data_bundle(data_tf_mfa, file.path(outputs_folder, "data_tf_mfa"))
