@@ -122,11 +122,34 @@ def create_missing_info(data: DatasetBundle, na_labels: dict[Any, str]) -> Datas
     return data
 
 
-def impute_allowed_skip(data: DatasetBundle, imp_val: dict[str, Any]) -> DatasetBundle:
-    """
-    Impute allowed skips of a dataset with a default value.
+# def impute_allowed_skip(data: DatasetBundle, imp_val: dict[str, Any] | None = None) -> DatasetBundle:
+#     """
+#     Impute allowed skips of a dataset with a default value.
 
-    By default imputs the value 0. Other values need to be specified in `imp_val`.
+#     By default imputs the value 0. Other values need to be specified in `imp_val`.
+#     """
+#     # Return a modified copy of the input
+#     data = data.copy()
+
+#     if data.na is None:
+#         raise ValueError("'data.na' may not be None.")
+
+#     imp_val = {} if imp_val is None else imp_val
+
+#     for var in data.data.columns:
+#         mask = data.na[var].eq("allowed skip")
+
+#         data.data.loc[mask, var] = imp_val.get(var, 0)
+
+#         imputed_cat = "imputed skip"
+#         if imputed_cat not in data.na[var].cat.categories:
+#             data.na[var] = data.na[var].cat.add_categories([imputed_cat])
+#         data.na.loc[mask, var] = imputed_cat
+
+#     return data
+
+def impute_allowed_skip(data: DatasetBundle, imp_val: dict[str, Any]) -> DatasetBundle:
+    """Impute allowed skips specified in imp_val with their default value.
     """
     # Return a modified copy of the input
     data = data.copy()
@@ -134,10 +157,10 @@ def impute_allowed_skip(data: DatasetBundle, imp_val: dict[str, Any]) -> Dataset
     if data.na is None:
         raise ValueError("'data.na' may not be None.")
 
-    for var in data.data.columns:
+    for var, val in imp_val.items():
         mask = data.na[var].eq("allowed skip")
 
-        data.data.loc[mask, var] = imp_val.get(var, 0)
+        data.data.loc[mask, var] = val
 
         imputed_cat = "imputed skip"
         if imputed_cat not in data.na[var].cat.categories:
