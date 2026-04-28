@@ -93,9 +93,10 @@ def contingency_table(index: pd.Series, columns: pd.Series, dropna: bool = False
     columns = columns.astype("str").fillna("NaN")
 
     crosstab = pd.crosstab(index, columns, dropna=False, **kwargs)
-    crosstab = crosstab.loc[
-        [x for x in crosstab.index if x != "NaN"] + ["NaN"], [x for x in crosstab.columns if x != "NaN"] + ["NaN"]
-    ]
+
+    idx = [*crosstab.index[crosstab.index != "NaN"], *crosstab.index[crosstab.index == "NaN"]]
+    cols = [*crosstab.columns[crosstab.columns != "NaN"], *crosstab.columns[crosstab.columns == "NaN"]]
+    crosstab = crosstab.loc[idx, cols]
 
     if dropna:
         crosstab = crosstab.drop(index="NaN", columns="NaN")
