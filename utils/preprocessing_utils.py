@@ -148,9 +148,9 @@ def create_missing_info(data: DatasetBundle, na_labels: dict[Any, str]) -> Datas
 
 #     return data
 
+
 def impute_allowed_skip(data: DatasetBundle, imp_val: dict[str, Any]) -> DatasetBundle:
-    """Impute allowed skips specified in imp_val with their default value.
-    """
+    """Impute allowed skips specified in imp_val with their default value."""
     # Return a modified copy of the input
     data = data.copy()
 
