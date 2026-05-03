@@ -22,7 +22,7 @@ n_comp <- 10
 
 
 #' Function for MFA
-do_mfa <- function(data, n_comp) {
+do_mfa <- function(data, n_comp, ...) {
     assert_list(data)
     assert_int(n_comp, lower = 0)
 
@@ -45,15 +45,16 @@ do_mfa <- function(data, n_comp) {
         data_sorted,
         group = group_info$size,
         type = group_info$type,
-        ncp = n_comp
+        ncp = n_comp,
+        ...
     )
 }
 
 # Fit models
-mfa_discov <- do_mfa(data_discov, n_comp = n_comp)
-mfa_valid <- do_mfa(data_valid, n_comp = n_comp)
+mfa_discov <- do_mfa(data_discov, n_comp = n_comp, graph = F)
+mfa_valid <- do_mfa(data_valid, n_comp = n_comp, graph = F)
 
-# Apply models   # TODO: create plots
+# Apply models
 data_discov_mfa <- list(data = as_tibble(mfa_discov$ind$coord))
 data_valid_mfa <- list(data = as_tibble(mfa_valid$ind$coord))
 
