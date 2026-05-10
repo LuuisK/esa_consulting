@@ -8,7 +8,7 @@ library(RColorBrewer)
 source(file.path("utils/plotting_utils.R"))
 source(file.path("utils/saving_utils.R"))
 
-plots_folder <- file.path("outputs/scree_plots")
+plots_folder <- file.path("outputs/dim_red")
 
 default_colors <- theme_ggplot$palette.colour.discrete
 

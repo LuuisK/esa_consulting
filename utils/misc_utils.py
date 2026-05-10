@@ -57,7 +57,7 @@ def reduce_dimen_2d(data: pd.DataFrame, projection_method: str | type[Projection
         data_2d = transform_2d.fit_transform(data)
         data_2d = typing.cast(np.typing.NDArray, data_2d)
 
-    return pd.DataFrame(data={"x": data_2d[:, 0], "y": data_2d[:, 1]}, index=data.index.copy())
+    return pd.DataFrame(data={"x": data_2d[:, 0], "y": data_2d[:, 1]})
 
 
 def turn_cats_to_continuous(data: pd.DataFrame, treat_cat_as_continuous: Iterable[str] | None) -> pd.DataFrame:
@@ -81,6 +81,15 @@ def stack_dataframes(dataframes: dict[str, pd.DataFrame]) -> pd.DataFrame:
     return pd.concat(dataframes, axis=1).swaplevel(0, 1, axis=1).reindex(all_vars, axis=1, level=0)
 
 
+def make_nan_a_value(x: pd.Series) -> pd.Series:
+    """Make NaN into a value (convert to string dtype if necessary)."""
+    if x.dtype == "category":
+        x = x.cat.add_categories(["NaN"]).fillna("NaN")
+    else:
+        x = x.astype("str").fillna("NaN")
+    return x
+
+
 def contingency_table(index: pd.Series, columns: pd.Series, dropna: bool = False, **kwargs) -> pd.DataFrame:
     """
     Contingency table.
@@ -89,16 +98,15 @@ def contingency_table(index: pd.Series, columns: pd.Series, dropna: bool = False
     """
     assert pd.options.future.infer_string
 
-    index = index.astype("str").fillna("NaN")
-    columns = columns.astype("str").fillna("NaN")
+    index = make_nan_a_value(index)
+    columns = make_nan_a_value(columns)
 
     crosstab = pd.crosstab(index, columns, dropna=False, **kwargs)
 
-    idx = [*crosstab.index[crosstab.index != "NaN"], *crosstab.index[crosstab.index == "NaN"]]
-    cols = [*crosstab.columns[crosstab.columns != "NaN"], *crosstab.columns[crosstab.columns == "NaN"]]
-    crosstab = crosstab.loc[idx, cols]
-
     if dropna:
-        crosstab = crosstab.drop(index="NaN", columns="NaN")
+        index_nan = crosstab.index[crosstab.index.str.fullmatch("NaN")]
+        columns_nan = crosstab.columns[crosstab.columns.str.fullmatch("NaN")]
+
+        crosstab = crosstab.drop(index=index_nan, columns=columns_nan)
 
     return crosstab
