@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import itertools
 from collections.abc import Sequence
 
 import numpy as np
@@ -22,9 +21,6 @@ from sklearn.metrics import (
     pairwise_distances,
     silhouette_score,
 )
-from sklearn.mixture import GaussianMixture
-
-from utils.dimensionality_reduction_utils import BlockPCA
 
 pd.options.mode.copy_on_write = True
 pd.options.future.infer_string = True
@@ -41,41 +37,23 @@ def print_clustering_info(cluster_labels: pd.Series[pd.CategoricalDtype], sort_b
 def predict_clustering_labels(model: BaseEstimator, data: pd.DataFrame) -> pd.Series[pd.CategoricalDtype]:
     """Predicts labels for a dataset using a clustering model."""
     return (
-        pd.Series(data=model.predict(data), index=data.index.copy())  # type: ignore
-        .replace(-1, pd.NA)
-        .astype("category")
+        pd.Series(model.predict(data), dtype="str")  # type: ignore
+        .replace("-1", pd.NA)
+        .pipe(lambda x: x.astype(pd.CategoricalDtype(pd.Series(x.unique()).sort_values(key=lambda x: x.astype(int)))))
     )
 
 
 def predict_clustering_proba(model: BaseEstimator, data: pd.DataFrame) -> pd.DataFrame:
     """Predicts cluster probabilities for a dataset using a clustering model."""
-    return pd.DataFrame(data=model.predict_proba(data), index=data.index.copy()).rename(  # type: ignore
+    return pd.DataFrame(model.predict_proba(data)).rename(  # type: ignore
         columns=lambda x: f"cluster_{x}"
     )
 
 
-def get_cluster_means(model: GaussianMixture, pca: BlockPCA) -> pd.DataFrame:
-    """Backtransform cluster means from PCA space into variable space."""
-    columns = (f"{group}_comp_{i}" for group in pca.var_groups for i in range(pca.n_components_per_group[group]))
-    cluster_means = pd.DataFrame(model.means_).rename(columns=lambda x: next(columns))  # type: ignore
-    return pca.inverse_transform(cluster_means).rename_axis("cluster", axis=0)
-
-
-def get_cluster_vars(model: GaussianMixture, pca: BlockPCA) -> tuple[pd.DataFrame, ...]:
-    """Backtransform cluster variances from PCA space into variable space."""
-    model_gmm = model
-
-    vars_in_order = list(itertools.chain.from_iterable(pca.var_groups.values()))
-    return tuple(
-        pd.DataFrame(var_cluster).rename(
-            index=lambda x, iter=iter(vars_in_order): next(iter), columns=lambda x, iter=iter(vars_in_order): next(iter)
-        )
-        for var_cluster in pca.components_.T @ model_gmm.covariances_ @ pca.components_  # type: ignore
-    )
-
-
 def cluster_summaries(
-    data: pd.DataFrame, labels: pd.Series[pd.CategoricalDtype], agg_func: pdt.AggFuncTypeFrame = ["mean", "std"]
+    data: pd.DataFrame,
+    labels: pd.Series[pd.CategoricalDtype],
+    agg_func: pdt.AggFuncTypeFrame = ["mean", "std"],  # type: ignore
 ):
     """
     Cluster summaries
