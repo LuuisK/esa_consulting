@@ -7,6 +7,7 @@ data/dim_red/*
 outputs/corr_assoc_plots/*
 outputs/dim_red/*
 outputs/gmm_clustering/*
+outputs/kmeans_clustering/*
 outputs/imputed/*
 outputs/EDA_plots/*
 
@@ -18,6 +19,7 @@ outputs/EDA_plots/*
 !outputs/corr_assoc_plots/.gitkeep
 !outputs/dim_red/.gitkeep
 !outputs/gmm_clustering/.gitkeep
+!outputs/kmeans_clustering/.gitkeep
 !outputs/imputed/.gitkeep
 !outputs/EDA_plots/.gitkeep
 
