@@ -1,4 +1,4 @@
-#' Notebook for creating scree plots
+#' Script for creating scree plots
 
 # Load required packages
 library(ggplot2)
@@ -60,5 +60,5 @@ ggsave(
     scree_plot,
     width = 4,
     height = 4,
-    dpi = 300
+    dpi = dpi_ggplot
 )

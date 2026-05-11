@@ -16,11 +16,12 @@ font_add(
     bolditalic = "fonts/Libertinus-7.051/LibertinusSerif-BoldItalic.otf"
 )
 showtext_auto()
-dpi <- 300
-showtext_opts(dpi = dpi)
+dpi_ggplot <- 300
+showtext_opts(dpi = dpi_ggplot)
 
 
 # Default pyplot colors
+default_color <- "midnightblue"
 colors_pyplot <- c(
     "#1f77b4",
     "#ff7f0e",
@@ -37,6 +38,7 @@ colors_pyplot <- c(
 # Create ggplot theme
 theme_ggplot <- theme_bw(base_family = font_name) +
     theme(
+        geom = element_geom(color = default_color, fill = default_color),
         palette.colour.discrete = colors_pyplot,
         palette.fill.discrete = colors_pyplot
     )
@@ -50,5 +52,3 @@ data.frame(x = c(0, 1, 2, 3), y = c(1, 1, 2, 2)) |>
     geom_line() +
     labs(x = "x", y = "y", title = "Test title") +
     theme_ggplot
-
-# TODO for folders in esa_consulting: Path(...).mkdir(exist_ok=True)

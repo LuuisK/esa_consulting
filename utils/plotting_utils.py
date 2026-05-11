@@ -33,6 +33,7 @@ font_name = font_manager.FontProperties(fname=font_paths[0]).get_name()
 
 
 # Create ggplot theme
+default_color = "midnightblue"
 colors_pyplot = [
     "#1f77b4",
     "#ff7f0e",
@@ -78,9 +79,6 @@ def make_plot_2d_data(data: pd.DataFrame, cluster_labels: pd.Series[pd.Categoric
         + theme_ggplot
     )
     return plot
-
-
-# TODO: move some plots into their notebooks instead of here
 
 
 def make_plot_corr_assoc_matrix(data: pd.DataFrame) -> p9.ggplot:
