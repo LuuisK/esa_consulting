@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import itertools
 import typing
+from functools import partial
 from typing import Literal
 
 import numpy as np
@@ -36,7 +37,7 @@ def correlation_ratio(*samples: pd.Series) -> float:
     return correlation_ratio
 
 
-def measure_corr_continuous(valuesi: pd.Series, valuesj: pd.Series, **kwargs) -> tuple[float, float]:
+def measure_corr_continuous(valuesi: pd.Series, valuesj: pd.Series) -> tuple[float, float]:
     """
     Measures the correlation of two continuous variables.
 
@@ -88,7 +89,8 @@ def measure_assoc_mixed(
 
     # Compute eta and conduct Kruskal-Wallis test
     groups = [cont_values[dum] for var, dum in pd.get_dummies(cat_values).items()]
-    if np.all(np.concat(groups) == next(iter(groups[0]))):
+    obs = np.concat(groups)
+    if len(obs) == 0 or np.all(obs == next(iter(obs))):
         # Kruskal-Wallis test is not defined if all values are equal. We define the p-value as 1.
         p_value = 1.0
     else:
@@ -99,7 +101,7 @@ def measure_assoc_mixed(
     return assoc, p_value
 
 
-def measure_assoc_nominal(valuesi: pd.Series, valuesj: pd.Series, **kwargs) -> tuple[float, float]:
+def measure_assoc_nominal(valuesi: pd.Series, valuesj: pd.Series) -> tuple[float, float]:
     """
     Measures the association of two nominal variables.
 
@@ -145,17 +147,15 @@ def create_corr_assoc_matrix(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataF
 
     # Loop over pairs of variables
     for vari, varj in itertools.combinations(data.columns, r=2):
-        # Get variable types
-        which_continuous = ""
-        if not isinstance(data[vari].dtype, pd.CategoricalDtype):
-            which_continuous += "i"
-        if not isinstance(data[varj].dtype, pd.CategoricalDtype):
-            which_continuous += "j"
-        n_cont = len(which_continuous)
-
         # Calculate different association / correlation measures depending on variable types
-        corr_assoc_func = [measure_assoc_nominal, measure_assoc_mixed, measure_corr_continuous][n_cont]
-        corr_assoc, p_value = corr_assoc_func(data[vari], data[varj], which_continuous=which_continuous)
+        is_cat = (isinstance(data[vari].dtype, pd.CategoricalDtype), isinstance(data[varj].dtype, pd.CategoricalDtype))
+        if all(is_cat):
+            corr_assoc_func = measure_assoc_nominal
+        elif any(is_cat):
+            corr_assoc_func = partial(measure_assoc_mixed, which_continuous="j" if is_cat[0] else "i")
+        else:
+            corr_assoc_func = measure_corr_continuous
+        corr_assoc, p_value = corr_assoc_func(data[vari], data[varj])
 
         # Fill in matrices
         corr_assoc_matrix.loc[vari, varj] = corr_assoc_matrix.loc[varj, vari] = corr_assoc

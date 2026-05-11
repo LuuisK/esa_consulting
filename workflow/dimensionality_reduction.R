@@ -3,6 +3,7 @@
 #' dimensionality_reduction.R -> gmm_clustering.ipynb
 
 # Load required packages
+library(arrow) # read and write parquet
 library(checkmate) # assertions
 library(dplyr) # data-frame methods
 library(FactoMineR) # MFA
@@ -22,7 +23,7 @@ n_comp <- 10
 
 
 #' Function for MFA
-do_mfa <- function(data, n_comp) {
+do_mfa <- function(data, n_comp, ...) {
     assert_list(data)
     assert_int(n_comp, lower = 0)
 
@@ -45,17 +46,18 @@ do_mfa <- function(data, n_comp) {
         data_sorted,
         group = group_info$size,
         type = group_info$type,
-        ncp = n_comp
+        ncp = n_comp,
+        ...
     )
 }
 
 # Fit models
-mfa_discov <- do_mfa(data_discov, n_comp = n_comp)
-mfa_valid <- do_mfa(data_valid, n_comp = n_comp)
+mfa_discov <- do_mfa(data_discov, n_comp = n_comp, graph = F)
+mfa_valid <- do_mfa(data_valid, n_comp = n_comp, graph = F)
 
-# Apply models   # TODO: create plots
-data_discov_mfa <- list(data = as_tibble(mfa_discov$ind$coord))
-data_valid_mfa <- list(data = as_tibble(mfa_valid$ind$coord))
+# Apply models
+data_discov_mfa <- as_tibble(mfa_discov$ind$coord)
+data_valid_mfa <- as_tibble(mfa_valid$ind$coord)
 
 
 # Save models
@@ -63,5 +65,11 @@ save_object(mfa_discov, save_path = file.path(outputs_folder, "mfa_discov.rds"))
 save_object(mfa_valid, save_path = file.path(outputs_folder, "mfa_valid.rds"))
 
 # Save transformed data
-save_data_bundle(data_discov_mfa, file.path(outputs_folder, "data_discov_mfa"))
-save_data_bundle(data_valid_mfa, file.path(outputs_folder, "data_valid_mfa"))
+write_parquet(
+    data_discov_mfa,
+    file.path(outputs_folder, "data_discov_mfa.parquet")
+)
+write_parquet(
+    data_valid_mfa,
+    file.path(outputs_folder, "data_valid_mfa.parquet")
+)

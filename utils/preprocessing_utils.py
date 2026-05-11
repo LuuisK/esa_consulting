@@ -4,12 +4,8 @@ from __future__ import annotations
 
 import builtins
 import itertools
-import warnings
-from collections.abc import Iterable
 from typing import Any
 
-import miceforest as mf
-import numpy as np
 import pandas as pd
 
 from utils.saving_utils import DatasetBundle
@@ -122,33 +118,6 @@ def create_missing_info(data: DatasetBundle, na_labels: dict[Any, str]) -> Datas
     return data
 
 
-# def impute_allowed_skip(data: DatasetBundle, imp_val: dict[str, Any] | None = None) -> DatasetBundle:
-#     """
-#     Impute allowed skips of a dataset with a default value.
-
-#     By default imputs the value 0. Other values need to be specified in `imp_val`.
-#     """
-#     # Return a modified copy of the input
-#     data = data.copy()
-
-#     if data.na is None:
-#         raise ValueError("'data.na' may not be None.")
-
-#     imp_val = {} if imp_val is None else imp_val
-
-#     for var in data.data.columns:
-#         mask = data.na[var].eq("allowed skip")
-
-#         data.data.loc[mask, var] = imp_val.get(var, 0)
-
-#         imputed_cat = "imputed skip"
-#         if imputed_cat not in data.na[var].cat.categories:
-#             data.na[var] = data.na[var].cat.add_categories([imputed_cat])
-#         data.na.loc[mask, var] = imputed_cat
-
-#     return data
-
-
 def impute_allowed_skip(data: DatasetBundle, imp_val: dict[str, Any]) -> DatasetBundle:
     """Impute allowed skips specified in imp_val with their default value."""
     # Return a modified copy of the input
@@ -240,45 +209,3 @@ def remove_variables(data: DatasetBundle, drop_vars: list[str] | None = None) ->
         data.na = data.na.drop(columns=drop_vars, errors="ignore")
 
     return data
-
-
-def impute_data(
-    data: pd.DataFrame,
-    rng: np.random.Generator | np.random.BitGenerator | None = None,
-    mi_number: int = 1,
-    mice_iterations: int = 3,
-    # ordinal_variables = ..., # TODO: miceforest deals with ordinal variables as nominal
-    **kwargs,
-) -> mf.ImputationKernel:
-    """
-    Imputes data using MICE.
-    """
-    # Create RNG to simulate randomness
-    rng = np.random.default_rng(rng)
-
-    # Filter keyword arguments
-    kernel_kwargs = {
-        key: value for key, value in kwargs.items() if key in mf.ImputationKernel.__init__.__code__.co_varnames
-    }
-    mice_kwargs = {key: value for key, value in kwargs.items() if key not in kernel_kwargs}
-
-    # Change PMM strategy for categorical variables to avoid numerical errors. See
-    # https://github.com/AnotherSamWilson/miceforest/issues/96#issuecomment-3242644783.
-    categorical_vars = data.select_dtypes("category").columns
-    pmm_strategies = {var: "shap" if var in categorical_vars else "normal" for var in data.columns}
-
-    # Impute
-    imputation_kernel = mf.ImputationKernel(
-        data,
-        num_datasets=mi_number,
-        random_state=np.random.RandomState(rng.bit_generator),
-        mean_match_strategy=pmm_strategies,
-        mean_match_candidates=5,
-        **kernel_kwargs,
-    )
-    # Catch PerformanceWarning from DataFrame fracturing. Might still lead to crash if mice_iterations is set higher.
-    with warnings.catch_warnings():
-        warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
-        imputation_kernel.mice(iterations=mice_iterations, **mice_kwargs)
-
-    return imputation_kernel

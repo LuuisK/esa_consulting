@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import plotnine as p9
+from matplotlib import font_manager
 from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_samples
 from sklearn.mixture._base import BaseMixture
@@ -17,9 +20,35 @@ pd.options.mode.copy_on_write = True
 pd.options.future.infer_string = True
 
 
+# Register font
+font_paths = [
+    Path("fonts/Libertinus-7.051/LibertinusSerif-Regular.otf"),
+    Path("fonts/Libertinus-7.051/LibertinusSerif-Bold.otf"),
+    Path("fonts/Libertinus-7.051/LibertinusSerif-Italic.otf"),
+    Path("fonts/Libertinus-7.051/LibertinusSerif-BoldItalic.otf"),
+]
+for font_path in font_paths:
+    font_manager.fontManager.addfont(font_path)
+font_name = font_manager.FontProperties(fname=font_paths[0]).get_name()
+
+
 # Create ggplot theme
-theme_ggplot: p9.theme = p9.theme_minimal()
-default_color_ggplot: str = "midnightblue"
+default_color = "midnightblue"
+colors_pyplot = [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf",
+]
+theme_ggplot: p9.theme = p9.theme_bw(base_family=font_name)
+scale_color_ggplot = p9.scale_color_hue()
+scale_fill_ggplot = p9.scale_fill_hue()
 
 
 def make_plot_2d_data(data: pd.DataFrame, cluster_labels: pd.Series[pd.CategoricalDtype] | None = None):
@@ -35,9 +64,7 @@ def make_plot_2d_data(data: pd.DataFrame, cluster_labels: pd.Series[pd.Categoric
     # Color based on clustering if provided
     aes_kwargs = {}
     geom_point_kwargs = {}
-    if cluster_labels is None:
-        geom_point_kwargs |= dict(fill=default_color_ggplot)
-    else:
+    if cluster_labels is not None:
         data["cluster"] = cluster_labels
         aes_kwargs |= dict(fill="cluster")
 
@@ -46,6 +73,9 @@ def make_plot_2d_data(data: pd.DataFrame, cluster_labels: pd.Series[pd.Categoric
         p9.ggplot(data)
         + p9.aes(x=data.columns[0], y=data.columns[1], **aes_kwargs)
         + p9.geom_point(alpha=0.3, **geom_point_kwargs, color="none")
+        + scale_color_ggplot
+        + scale_fill_ggplot
+        + p9.guides(fill=p9.guide_legend(override_aes={"size": 5, "alpha": 1}))
         + theme_ggplot
     )
     return plot
@@ -66,8 +96,8 @@ def make_plot_corr_assoc_matrix(data: pd.DataFrame) -> p9.ggplot:
     vars_ordered = [*continuous_vars, *categorical_vars]
 
     # Pivot matrices
-    corr_assocs = corr_assoc_matrix.stack(future_stack=True).rename("corr_assoc")  # type: ignore
-    p_values = p_value_matrix.stack(future_stack=True).rename("p_value")  # type: ignore
+    corr_assocs = corr_assoc_matrix.stack(future_stack=True).rename("corr_assoc")
+    p_values = p_value_matrix.stack(future_stack=True).rename("p_value")
 
     # Create dataset
     def _get_type(values):
@@ -158,36 +188,28 @@ def make_plot_cv(cv_model: GridSearchCV, by: str | None = None, group: str | Non
     """
     Creates a plot of cross validation performances for different parameters.
     """
-    by = next(iter(cv_model.param_grid[0])) if by is None else by  # type: ignore
+    by = next(iter(cv_model.param_grid[0])) if by is None else by
 
     data_ggplot = pd.DataFrame(cv_model.cv_results_["params"]).assign(
         **{
             "is_best": lambda x: x.apply(lambda y: y.equals(pd.Series(cv_model.best_params_)), axis=1),
-            "mean_test_score": cv_model.cv_results_["mean_test_score"],
+            "mean_score": cv_model.cv_results_["mean_test_score"],
         }
     )
+    data_best = data_ggplot[lambda x: x["is_best"]]
 
     plot_cv = (
         p9.ggplot(data_ggplot)
-        + (p9.aes(by, "- mean_test_score", color=group) if group is not None else p9.aes(by, "- mean_test_score"))
+        + (p9.aes(by, "- mean_score", color=group) if group is not None else p9.aes(by, "- mean_score"))
         + p9.geom_line()
         + p9.geom_point(
-            p9.aes(by, "- mean_test_score"),
-            inherit_aes=False,
-            data=data_ggplot[data_ggplot["is_best"]],
-            shape="o",
-            size=5,
-            color="purple",
-            fill="none",
+            p9.aes(by, "- mean_score"), data=data_best, inherit_aes=False, shape="o", size=5, color="black", fill="none"
         )
         + p9.geom_vline(
-            p9.aes(xintercept=by),
-            inherit_aes=False,
-            data=data_ggplot[data_ggplot["is_best"]],
-            color="purple",
-            linetype="--",
-            alpha=0.5,
+            p9.aes(xintercept=by), data=data_best, inherit_aes=False, color="black", linetype="--", alpha=0.5
         )
+        + p9.scale_x_continuous(expand=(0, 0))
+        + scale_color_ggplot
         + theme_ggplot
     )
     return plot_cv
@@ -221,30 +243,28 @@ def make_plot_silhouette(data: pd.DataFrame, cluster_labels: pd.Series[pd.Catego
 
     # Create ggplot data
     data_ggplot = pd.DataFrame({"cluster": cluster_labels, "silhouette": silhouettes})
-    data_ggplot["rank"] = (
-        data_ggplot.groupby("cluster")["silhouette"]
-        .rank(method="first", ascending=False)
-        .astype("int")
-        .astype("category")
+    data_ggplot["rank_group"] = (
+        data_ggplot.groupby("cluster")["silhouette"].rank(method="first", ascending=False).astype("int")
     )
+    data_ggplot = data_ggplot.sort_values(["cluster", "rank_group"])
+    data_ggplot["rank"] = range(len(data_ggplot))
 
     # Create silhouette plot
     silhouette_plot = (
         p9.ggplot(data_ggplot)
-        + p9.aes("rank", "silhouette", group="cluster", color="cluster", fill="cluster")
-        + p9.facet_grid(rows=None, cols="cluster", scales="free_x", space="free_x")
+        + p9.aes(x="rank", y="silhouette", color="cluster", fill="cluster")
         + p9.geom_bar(stat="identity", width=0)
         + p9.labs(x="")
+        + p9.lims(y=(-1, 1))
+        + p9.scale_x_continuous(expand=(0, 0))
+        + scale_color_ggplot
+        + scale_fill_ggplot
         + theme_ggplot
         + p9.theme(
+            panel_grid_major_x=p9.element_blank(),
+            panel_grid_minor_x=p9.element_blank(),
             axis_text_x=p9.element_blank(),
             axis_ticks_x=p9.element_blank(),
-            panel_grid=p9.element_blank(),
-            strip_text=p9.element_blank(),
-            panel_grid_major_y=p9.element_line(color="gray", alpha=0.5),
-            panel_spacing=0,
-            # panel_border=p9.element_rect(color="gray", alpha=0.5),
-            plot_background=p9.element_rect(fill="gray", alpha=0.3),
         )
     )
     return silhouette_plot
@@ -264,12 +284,24 @@ def make_plot_contingency_table(
     match.
     """
     cont_table = contingency_table(values1, values2, dropna=False, normalize="index")
-    data_ggplot = pd.DataFrame({"entailment": cont_table.stack(future_stack=True)}).reset_index(names=[name1, name2])
+    data_ggplot = (
+        pd.DataFrame({"entailment": cont_table.stack(future_stack=True)})
+        .reset_index(names=[name1, name2])
+        .assign(
+            **{
+                "text": lambda x: x["entailment"].apply(lambda y: f"{y:.2f}"),
+                "text_color": lambda x: pd.cut(x["text"].astype("float"), (0, 0.4, 1), labels=("low", "high")),
+            }
+        )
+    )
 
     cont_table_plot = (
         p9.ggplot(data_ggplot)
         + p9.aes(x=name2, y=name1, fill="entailment")
         + p9.geom_tile(height=0.975, width=0.975)
+        + p9.geom_text(p9.aes(label="text", color="text_color"), size=9, show_legend=False)
+        + p9.scale_color_manual(["white", "black"], na_value="gray")  # na_value for 0.00
+        + p9.coord_fixed()
         + theme_ggplot
     )
     return cont_table_plot
