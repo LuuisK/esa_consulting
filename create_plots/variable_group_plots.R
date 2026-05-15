@@ -220,3 +220,58 @@ for (g in unique(missingness_per_variable_group$group)) {
     dpi = dpi_ggplot
   )
 }
+
+
+
+
+
+
+
+
+###### number of interview types in 2018 and 2021
+
+interview_type_plot_data <- bind_rows(
+  data_discov$data |>
+    mutate(year = 2018),
+  data_valid$data |>
+    mutate(year = 2021)
+) |>
+  filter(!is.na(int_art)) |>
+  mutate(
+    int_art_label = case_when(
+      int_art == 1 ~ "CATI",
+      int_art == 2 ~ "PAPI",
+      int_art == 3 ~ "CAWI",
+      TRUE ~ as.character(int_art)
+    )
+  ) |>
+  count(year, int_art_label)
+
+interview_type_plot <- ggplot(
+  interview_type_plot_data,
+  aes(x = int_art_label, y = n, fill = factor(year))
+) +
+  geom_col(position = position_dodge(width = 0.9)) +
+  geom_text(
+    aes(label = n),
+    position = position_dodge(width = 0.9),
+    vjust = -0.3,
+    size = 3
+  ) +
+  labs(
+    title = "Interview Types in 2018 and 2021",
+    x = "Interview Type",
+    y = "Count",
+    fill = "Year"
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+  theme_ggplot
+
+ggsave(
+  filename = file.path(outputs_folder, "interview_types_2018_2021.png"),
+  plot = interview_type_plot,
+  width = 6,
+  height = 4,
+  dpi = dpi_ggplot
+)
+
