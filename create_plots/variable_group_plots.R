@@ -69,7 +69,6 @@ ggsave(
 ###### missingness before imputing skip NAs per group
 
 ###### missingness after imputing skip NAs per group
-###### missingness after imputing skip NAs per group
 
 # Helper: find variable-name column in meta
 var_col <- intersect(c("variable", "var", "name", "column"), names(data_full$meta))[1]
@@ -228,7 +227,7 @@ for (g in unique(missingness_per_variable_group$group)) {
 
 
 
-###### number of interview types in 2018 and 2021
+### number of interview types in 2018 and 2021
 
 interview_type_plot_data <- bind_rows(
   data_discov$data |>
