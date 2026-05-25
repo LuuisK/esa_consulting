@@ -36,15 +36,28 @@ colors_pyplot <- c(
 )
 
 # Create ggplot theme
+
+# theme_ggplot <- theme_bw(base_family = font_name) +
+#     theme(
+#         geom = element_geom(color = default_color, fill = default_color),
+#         palette.colour.discrete = colors_pyplot,
+#         palette.fill.discrete = colors_pyplot
+#     )
+# scale_color_ggplot <- scale_color_hue()
+# scale_fill_ggplot <- scale_fill_hue()
+
+
+
 theme_ggplot <- theme_bw(base_family = font_name) +
     theme(
-        geom = element_geom(color = default_color, fill = default_color),
-        palette.colour.discrete = colors_pyplot,
-        palette.fill.discrete = colors_pyplot
+        text = element_text(color = default_color),
+        axis.title = element_text(color = default_color),
+        axis.text = element_text(color = default_color),
+        plot.title = element_text(color = default_color, face = "bold")
     )
-scale_color_ggplot <- scale_color_hue()
-scale_fill_ggplot <- scale_fill_hue()
 
+scale_color_ggplot <- scale_color_manual(values = colors_pyplot)
+scale_fill_ggplot <- scale_fill_manual(values = colors_pyplot)
 
 data.frame(x = c(0, 1, 2, 3), y = c(1, 1, 2, 2)) |>
     ggplot() +
