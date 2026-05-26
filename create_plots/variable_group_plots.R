@@ -166,7 +166,8 @@ gender_plot <- data_full$data |>
     aes(label = n),
     position = position_dodge(width = 0.9),
     vjust = -0.3,
-    size = 3.5
+    size = 3.5,
+    family = font_name
   ) +
   scale_fill_manual(values = colors_year) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
@@ -207,7 +208,8 @@ interview_type_plot <- data_full$data |>
     aes(label = n),
     position = position_dodge(width = 0.9),
     vjust = -0.3,
-    size = 3.5
+    size = 3.5,
+    family = font_name
   ) +
   scale_fill_manual(values = colors_year) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
