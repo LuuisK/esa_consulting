@@ -21,7 +21,13 @@ showtext_opts(dpi = dpi_ggplot)
 
 
 # Default pyplot colors
-default_color <- "midnightblue"
+default_color <- "black"
+
+colors_year <- c(
+    "2018" = "#1f77b4",
+    "2021" = "#ff7f0e"
+)
+
 colors_pyplot <- c(
     "#1f77b4",
     "#ff7f0e",
