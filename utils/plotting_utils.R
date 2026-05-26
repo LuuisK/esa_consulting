@@ -21,7 +21,7 @@ showtext_opts(dpi = dpi_ggplot)
 
 
 # Default pyplot colors
-default_color <- "black"
+default_color <- "midnightblue"
 
 colors_year <- c(
     "2018" = "#1f77b4",
@@ -56,10 +56,13 @@ colors_pyplot <- c(
 
 theme_ggplot <- theme_bw(base_family = font_name) +
     theme(
-        text = element_text(color = default_color),
-        axis.title = element_text(color = default_color),
-        axis.text = element_text(color = default_color),
-        plot.title = element_text(color = default_color, face = "bold")
+        text = element_text(color = "black"),
+        axis.title = element_text(color = "black"),
+        axis.text = element_text(color = "black"),
+        plot.title = element_text(color = "black", face = "bold"),
+        legend.title = element_text(color = "black"),
+        legend.text = element_text(color = "black"),
+        strip.text = element_text(color = "black")
     )
 
 scale_color_ggplot <- scale_color_manual(values = colors_pyplot)
