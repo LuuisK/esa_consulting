@@ -16,9 +16,11 @@ source(file.path("utils", "saving_utils.R"))
 data_full <- load_data_bundle(file.path("data", "preprocessed", "data_full"))
 data_discov <- load_data_bundle(file.path("data", "preprocessed", "data_discov_full"))
 data_valid <- load_data_bundle(file.path("data", "preprocessed", "data_valid_full"))
+data_discov_reduced <- load_data_bundle(file.path("data", "preprocessed", "data_discov_reduced"))
+data_valid_reduced <- load_data_bundle(file.path("data", "preprocessed", "data_valid_reduced"))
 
 outputs_folder <- file.path("outputs", "EDA_plots")
-dir.create(outputs_folder, recursive = TRUE)
+dir.create(outputs_folder, recursive = TRUE, showWarnings = FALSE)
 
 # ------------------------------------------------------------------------------
 # Helper functions
@@ -44,59 +46,34 @@ save_plot <- function(plot, filename, width = 6, height = 4) {
   )
 }
 
-plot_average_missingness_by_group <- function(data_bundle, dataset_label) {
-  var_col <- get_var_col(data_bundle$meta)
-
-  data_bundle$data |>
-    summarise(across(everything(), ~ mean(is.na(.x)) * 100)) |>
-    pivot_longer(
-      cols = everything(),
-      names_to = "variable",
-      values_to = "missing_pct"
-    ) |>
-    left_join(
-      data_bundle$meta |>
-        rename(variable = all_of(var_col)) |>
-        select(variable, group),
-      by = "variable"
-    ) |>
-    filter(!is.na(group)) |>
-    group_by(group) |>
-    summarise(
-      mean_missing_pct = mean(missing_pct, na.rm = TRUE),
-      .groups = "drop"
-    ) |>
-    ggplot(aes(x = reorder(group, mean_missing_pct), y = mean_missing_pct)) +
-    geom_col(fill = default_color) +
-    coord_flip() +
-    labs(
-      title = paste("Average Missingness per Variable Group:", dataset_label),
-      subtitle = "Mean percentage of missing values across variables in each group",
-      x = "",
-      y = "Mean missingness (%)"
-    ) +
-    theme_ggplot
-}
-
 # ------------------------------------------------------------------------------
 # 1. Variables per group
 # ------------------------------------------------------------------------------
 
-variables_per_group_plot <- data_full$meta |>
-  count(group) |>
-  ggplot(aes(x = reorder(group, n), y = n)) +
-  geom_col(fill = default_color) +
+variables_per_group_plot <- bind_rows(
+  data_discov_reduced$meta |>
+    count(group) |>
+    mutate(year = "2018"),
+
+  data_valid_reduced$meta |>
+    count(group) |>
+    mutate(year = "2021")
+) |>
+  ggplot(aes(x = group, y = n, fill = year)) +
+  geom_col(position = position_dodge(width = 0.9)) +
   coord_flip() +
+  scale_fill_manual(values = colors_year) +
   labs(
-    title = "Variables per Group",
+    title = "Variables per Group in the Reduced Feature Spaces",
     x = "",
-    y = "Number of variables"
+    y = "Number of variables",
+    fill = "Year"
   ) +
   theme_ggplot
 
 save_plot(
   variables_per_group_plot,
-  "variables_per_group.png",
+  "variables_per_group_reduced_feature_spaces.png",
   width = 6,
   height = 4
 )
@@ -232,10 +209,37 @@ save_plot(
 # 6. Average missingness per variable group: discovery
 # ------------------------------------------------------------------------------
 
-missingness_discovery_plot <- plot_average_missingness_by_group(
-  data_bundle = data_discov,
-  dataset_label = "Discovery"
-)
+var_col_discov <- get_var_col(data_discov_reduced$meta)
+
+missingness_discovery_plot <- data_discov_reduced$data |>
+  summarise(across(everything(), ~ mean(is.na(.x)) * 100)) |>
+  pivot_longer(
+    cols = everything(),
+    names_to = "variable",
+    values_to = "missing_pct"
+  ) |>
+  left_join(
+    data_discov_reduced$meta |>
+      rename(variable = all_of(var_col_discov)) |>
+      select(variable, group),
+    by = "variable"
+  ) |>
+  filter(!is.na(group)) |>
+  group_by(group) |>
+  summarise(
+    mean_missing_pct = mean(missing_pct, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  ggplot(aes(x = reorder(group, mean_missing_pct), y = mean_missing_pct)) +
+  geom_col(fill = default_color) +
+  coord_flip() +
+  labs(
+    title = "Average Missingness per Variable Group: Discovery",
+    subtitle = "Mean percentage of missing values across retained clustering variables",
+    x = "",
+    y = "Mean missingness (%)"
+  ) +
+  theme_ggplot
 
 save_plot(
   missingness_discovery_plot,
@@ -248,10 +252,37 @@ save_plot(
 # 7. Average missingness per variable group: validation
 # ------------------------------------------------------------------------------
 
-missingness_validation_plot <- plot_average_missingness_by_group(
-  data_bundle = data_valid,
-  dataset_label = "Validation"
-)
+var_col_valid <- get_var_col(data_valid_reduced$meta)
+
+missingness_validation_plot <- data_valid_reduced$data |>
+  summarise(across(everything(), ~ mean(is.na(.x)) * 100)) |>
+  pivot_longer(
+    cols = everything(),
+    names_to = "variable",
+    values_to = "missing_pct"
+  ) |>
+  left_join(
+    data_valid_reduced$meta |>
+      rename(variable = all_of(var_col_valid)) |>
+      select(variable, group),
+    by = "variable"
+  ) |>
+  filter(!is.na(group)) |>
+  group_by(group) |>
+  summarise(
+    mean_missing_pct = mean(missing_pct, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  ggplot(aes(x = reorder(group, mean_missing_pct), y = mean_missing_pct)) +
+  geom_col(fill = default_color) +
+  coord_flip() +
+  labs(
+    title = "Average Missingness per Variable Group: Validation",
+    subtitle = "Mean percentage of missing values across retained clustering variables",
+    x = "",
+    y = "Mean missingness (%)"
+  ) +
+  theme_ggplot
 
 save_plot(
   missingness_validation_plot,
