@@ -52,8 +52,26 @@ do_mfa <- function(data, n_comp, ...) {
 }
 
 # Fit models
-mfa_discov <- do_mfa(data_discov, n_comp = n_comp, graph = F)
-mfa_valid <- do_mfa(data_valid, n_comp = n_comp, graph = F)
+mfa_discov <- do_mfa(
+    list(
+        "data" = data_discov$data |> select(-wichtn),
+        "meta" = data_discov$meta |> filter(name != "wichtn"),
+        "na" = data_discov$na |> select(-wichtn)
+    ),
+    n_comp = n_comp,
+    graph = F,
+    row.w = data_discov$wichtn
+)
+mfa_valid <- do_mfa(
+    list(
+        "data" = data_valid$data |> select(-wichtn),
+        "meta" = data_valid$meta |> filter(name != "wichtn"),
+        "na" = data_valid$na |> select(-wichtn)
+    ),
+    n_comp = n_comp,
+    graph = F,
+    row.w = data_valid$wichtn
+)
 
 # Apply models
 data_discov_mfa <- as_tibble(mfa_discov$ind$coord)
