@@ -3,6 +3,7 @@
 # Load required packages
 library(arrow) # read and write parquet
 library(checkmate) # assertions
+library(dplyr) # data-frame transformations
 library(readr) # better rds functions
 
 
