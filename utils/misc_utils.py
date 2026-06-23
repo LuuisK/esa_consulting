@@ -7,6 +7,9 @@ from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
+from numpy.lib._function_base_impl import _weights_are_valid  # type: ignore
+from numpy.lib.array_utils import normalize_axis_tuple
 from sklearn.manifold import MDS, TSNE, Isomap, LocallyLinearEmbedding, SpectralEmbedding
 from umap import UMAP
 
@@ -110,3 +113,80 @@ def contingency_table(index: pd.Series, columns: pd.Series, dropna: bool = False
         crosstab = crosstab.drop(index=index_nan, columns=columns_nan)
 
     return crosstab
+
+
+# Largely copied from numpy.average
+def var_weighted(a, axis=None, weights=None, returned=False, *, keepdims=np._NoValue):
+    a = np.asanyarray(a)
+
+    if axis is not None:
+        axis = normalize_axis_tuple(axis, a.ndim, argname="axis")
+
+    if keepdims is np._NoValue:
+        # Don't pass on the keepdims argument if one wasn't given.
+        keepdims_kw = {}
+    else:
+        keepdims_kw = {"keepdims": keepdims}
+
+    if weights is None:
+        var = a.var(axis, **keepdims_kw)
+        var_as_array = np.asanyarray(var)
+        scl = var_as_array.dtype.type(a.size / var_as_array.size)
+    else:
+        wgt = _weights_are_valid(weights=weights, a=a, axis=axis)
+
+        if issubclass(a.dtype.type, (np.integer, np.bool)):
+            result_dtype = np.result_type(a.dtype, wgt.dtype, "f8")
+        else:
+            result_dtype = np.result_type(a.dtype, wgt.dtype)
+
+        scl = wgt.sum(axis=axis, dtype=result_dtype, **keepdims_kw)
+        if np.any(scl == 0.0):
+            raise ZeroDivisionError("Weights sum to zero, can't be normalized")
+
+        avg = np.multiply(a, wgt, dtype=result_dtype).sum(axis, keepdims=True) / scl
+        sq_diff = np.square(np.subtract(a, avg))
+        var = var_as_array = np.multiply(sq_diff, wgt, dtype=result_dtype).sum(axis, **keepdims_kw) / scl
+
+    if returned:
+        if scl.shape != var_as_array.shape:
+            scl = np.broadcast_to(scl, var_as_array.shape).copy()
+        return var, scl
+    else:
+        return var
+
+
+def std_weighted(a, axis=None, weights=None, returned=False, *, keepdims=np._NoValue):
+    return np.sqrt(var_weighted(a, axis=axis, weights=weights, returned=returned, keepdims=keepdims))
+
+
+# Copied from sklearn and modified to enable sample weights
+def contingency_matrix(labels_true, labels_pred, *, sample_weight=None, eps=None, sparse=False, dtype=None):
+    """Build a contingency matrix describing the relationship between labels."""
+    if dtype is None:
+        dtype = np.int64 if sample_weight is None else np.float64
+    if eps is not None and sparse:
+        raise ValueError("Cannot set 'eps' when sparse=True")
+
+    classes, class_idx = np.unique(labels_true, return_inverse=True)
+    clusters, cluster_idx = np.unique(labels_pred, return_inverse=True)
+    n_classes = classes.shape[0]
+    n_clusters = clusters.shape[0]
+    # Using coo_matrix to accelerate simple histogram calculation,
+    # i.e. bins are consecutive integers
+    # Currently, coo_matrix is faster than histogram2d for simple cases
+    sample_weight = np.ones(class_idx.shape[0]) if sample_weight is None else sample_weight
+    contingency = sp.coo_matrix(
+        (sample_weight, (class_idx, cluster_idx)),
+        shape=(n_classes, n_clusters),
+        dtype=dtype,
+    )
+    if sparse:
+        contingency = contingency.tocsr()
+        contingency.sum_duplicates()
+    else:
+        contingency = contingency.toarray()
+        if eps is not None:
+            # don't use += as contingency is integer
+            contingency = contingency + eps
+    return contingency
