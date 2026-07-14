@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -11,10 +13,17 @@ from matplotlib import font_manager
 from sklearn.decomposition import PCA
 from sklearn.mixture._base import BaseMixture
 from sklearn.model_selection import GridSearchCV
+from sklearn.utils.validation import _check_sample_weight
 
 from utils.corr_assoc_utils import create_corr_assoc_matrix
 from utils.metrics_utils import silhouette_samples
-from utils.misc_utils import contingency_table
+from utils.misc_utils import (
+    agg_with_overall,
+    contingency_table,
+    partial_fn_with_info,
+    std_weighted,
+    turn_cats_to_continuous,
+)
 
 pd.options.mode.copy_on_write = True
 pd.options.future.infer_string = True
@@ -345,4 +354,191 @@ def make_plot_grid_search(
         + (None if len(metrics) <= 1 else p9.facet_wrap("metric", scales="free_y"))
         + p9.labs(x=x, y="values")
         + theme_ggplot
+    )
+
+
+def make_plot_continuous_var_dist_by_cluster(
+    data: pd.DataFrame,
+    labels: pd.Series[pd.CategoricalDtype],
+    var: str,
+    quantiles: Iterable[float] | None = None,
+    sample_weight: pd.Series | np.typing.ArrayLike | None = None,
+    sort: bool = False,
+    ascending: bool = False,
+    cluster_size_decimals: int = 0,
+    column_size: int = 4,
+) -> p9.ggplot:
+    """
+    Creates the plot of the distribution of a continuous variable in each cluster.
+
+    If a categorical variable is given, its (ordered) category codes are treated as a continuous variable. Above each
+    distribution, the (effective) cluster size is shown. If sort the clusters in the plot are sorted by mean.
+    """
+    # Process quantiles
+    quantiles = [0.02, 0.1, 0.33, 0.5, 0.67, 0.9, 0.98] if quantiles is None else list(quantiles)
+    if 0.5 not in quantiles:
+        quantiles = [*quantiles, 0.5]
+    quantiles = sorted(quantiles)
+
+    # Add cluster labels and sample weights to data
+    data_full = (
+        data[[var]]
+        .pipe(lambda x: turn_cats_to_continuous(x, [var]) if x[var].dtype == "category" else x)
+        .assign(**{"cluster": labels})
+    )
+    if sample_weight is not None:
+        data_full = data_full.assign(
+            **{
+                "weight": sample_weight[data.index]
+                if isinstance(sample_weight, pd.Series)
+                else _check_sample_weight(sample_weight, data.to_numpy())
+            }
+        )
+
+    # Get statistics of the variable for each cluster and overall
+    agg_spec = {
+        "mean": (var, partial_fn_with_info(np.average, ignore_nan=True, weights=getattr(data_full, "weight", None))),
+        "std": (var, partial_fn_with_info(std_weighted, ignore_nan=True, weights=getattr(data_full, "weight", None))),
+        **{
+            f"q{q:g}": (
+                var,
+                partial_fn_with_info(
+                    lambda x, q=q, **kws: np.float64(np.quantile(x, q, method="inverted_cdf", **kws)),
+                    ignore_nan=True,
+                    weights=getattr(data_full, "weight", None),
+                ),
+            )
+            for q in quantiles
+        },
+        "n": (var, "count") if sample_weight is None else ("weight", "sum"),
+    }
+    statistics = agg_with_overall(data_full, "cluster", **agg_spec, overall_label="all", observed=False).assign(
+        **{
+            "n_str": lambda x: (
+                x["n"]
+                .round(cluster_size_decimals)
+                .pipe(lambda y: y.astype("int") if sample_weight is None or cluster_size_decimals <= 0 else y)
+                .astype("str")
+            )
+        }
+    )
+
+    # Get data for plotting quantile bands
+    data_ggplot = (
+        statistics.reset_index()
+        .drop(columns=["mean", "std", "n", "n_str"])
+        .pipe(lambda x: pd.wide_to_long(x, "q", i="cluster", j="quantile", sep="", suffix=r"[\d.]+"))
+        .rename(columns={"q": "value"})
+        .reset_index()
+        .assign(
+            **{
+                "quantile_next": lambda x: x.groupby("cluster", observed=False)["quantile"].shift(-1),
+                "value_next": lambda x: x.groupby("cluster", observed=False)["value"].shift(-1),
+            }
+        )
+        .dropna(subset=["quantile_next", "value_next"])
+    )
+
+    # X axis ticks ordered
+    x_axis_ordering = statistics.pipe(
+        lambda x: x.sort_values(["mean", "std"], ascending=(ascending, not ascending)) if sort else x
+    ).index.to_list()
+
+    # Make legend labels for quantile bands
+    legend_labels = {x: f"q{x}–q{quantiles[i + 1]}" for i, x in enumerate(quantiles[:-1])}
+
+    # Construct plot
+    return (
+        p9.ggplot(data_ggplot)
+        + p9.aes(x="cluster", xend="cluster", y="value", yend="value_next", color="factor(quantile, ordered=True)")
+        + p9.geom_segment(size=column_size)
+        + p9.geom_point(
+            p9.aes(x="cluster", y="q0.5"), statistics.reset_index(), shape="_", inherit_aes=False, size=column_size - 1
+        )
+        + p9.geom_text(
+            p9.aes(x="cluster", y=f"q{np.max(quantiles):g}", label="n_str"),
+            statistics.reset_index(),
+            inherit_aes=False,
+            va="bottom",
+            nudge_y=0.03 * (data_full[var].max() - data_full[var].min()),
+            size=8,
+        )
+        + p9.scale_x_discrete(limits=x_axis_ordering)
+        + p9.scale_color_cmap_d(cmap_name="viridis", name="Quantile band", labels=legend_labels)  # type: ignore
+        + theme_ggplot
+    )
+
+
+def make_plot_categorical_var_dist_by_cluster(
+    data: pd.DataFrame,
+    labels: pd.Series[pd.CategoricalDtype],
+    var: str,
+    sample_weight: pd.Series | np.typing.ArrayLike | None = None,
+    cluster_size_decimals: int = 0,
+    value_labels: Mapping[Any, Any] | None = None,
+) -> p9.ggplot:
+    """Creates the plot of the distribution of a categorical variable in each cluster."""
+
+    # Add cluster labels and sample weights to data
+    data_full = data[[var]].assign(**{"cluster": labels})
+    if sample_weight is not None:
+        data_full = data_full.assign(
+            **{
+                "weight": sample_weight[data.index]
+                if isinstance(sample_weight, pd.Series)
+                else _check_sample_weight(sample_weight, data.to_numpy())
+            }
+        )
+
+    # Get statistics of the variable for each cluster and overall
+    statistics = agg_with_overall(
+        data_full,
+        "cluster",
+        **{"n": (var, "count") if sample_weight is None else ("weight", "sum")},
+        overall_label="all",
+        observed=False,
+    ).assign(
+        **{
+            "n_str": lambda x: (
+                x["n"]
+                .round(cluster_size_decimals)
+                .pipe(lambda y: y.astype("int") if sample_weight is None or cluster_size_decimals <= 0 else y)
+                .astype("str")
+            )
+        }
+    )
+
+    # Get data for plotting value counts
+    data_ggplot = (
+        agg_with_overall(
+            data_full,
+            "cluster",
+            **{"n": (var, "count") if sample_weight is None else ("weight", "sum")},
+            by_vars=["cluster", var],
+            overall_label="all",
+            observed=False,
+        )
+        .reset_index()
+        .assign(
+            **{
+                "proportion": lambda x: x["n"].div(statistics.loc[x["cluster"], "n"].values),
+                "cluster": lambda x: x["cluster"].cat.rename_categories(
+                    lambda x: f"{x}  ({statistics.loc[x, 'n_str']})"
+                ),
+            }
+        )
+    )
+
+    # Construct plot
+    return (
+        p9.ggplot(data_ggplot)
+        + p9.aes(x=var, y="proportion")
+        + p9.geom_bar(stat=p9.stat_identity())
+        + p9.coord_flip()
+        + p9.facet_wrap("cluster")
+        + p9.scale_x_discrete(
+            limits=lambda x: list(reversed(x)), labels=True if value_labels is None else dict(value_labels), drop=False
+        )
+        + theme_ggplot
+        + p9.theme(axis_text_x=p9.element_text(rotation=270))
     )

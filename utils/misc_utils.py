@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import typing
-from collections.abc import Iterable
+from collections.abc import Callable, Hashable, Iterable
+from typing import Any, Literal, cast, overload
 
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
+from IPython.display import HTML, display
 from numpy.lib._function_base_impl import _weights_are_valid  # type: ignore
 from numpy.lib.array_utils import normalize_axis_tuple
 from sklearn.manifold import MDS, TSNE, Isomap, LocallyLinearEmbedding, SpectralEmbedding
@@ -190,3 +192,154 @@ def contingency_matrix(labels_true, labels_pred, *, sample_weight=None, eps=None
             # don't use += as contingency is integer
             contingency = contingency + eps
     return contingency
+
+
+def value_counts(
+    values: pd.Series,
+    sort: bool = True,
+    ascending: bool = False,
+    normalize: bool = False,
+    dropna: bool = True,
+    sample_weight: pd.Series | np.typing.ArrayLike | None = None,
+) -> pd.Series:
+    if sample_weight is None:
+        frequencies = values.value_counts(normalize=normalize, sort=sort, ascending=ascending, dropna=dropna)
+    else:
+        frequencies = pd.Series(sample_weight).groupby(values, dropna=dropna, observed=False).sum()
+        frequencies.name = "count"
+        if normalize:
+            frequencies = frequencies / frequencies.sum()
+            frequencies.name = "proportion"
+        if sort:
+            frequencies = frequencies.sort_values(ascending=ascending)
+    return frequencies
+
+
+# See answers to https://stackoverflow.com/questions/38783027/jupyter-notebook-display-two-pandas-tables-side-by-side
+def display_side_by_side(*dfs: pd.DataFrame, captions: str | Iterable[str] | None = None, tablespacing: int = 5):
+    if captions is None:
+        captions = ""
+    if isinstance(captions, str):
+        captions = [captions] * len(dfs)
+    output = ""
+    for df, caption in zip(dfs, captions, strict=True):
+        output += (
+            df.style.set_caption(caption)
+            .set_table_styles([{"selector": "caption", "props": [("font-size", "16px"), ("font-weight", "bold")]}])
+            .set_table_attributes("style='display:inline; margin-right:10px;'")
+            ._repr_html_()
+        ) or ""
+        output += tablespacing * "\xa0"
+    display(HTML(output))
+
+
+def _is_column_label(data: pd.DataFrame, x: object) -> bool:
+    try:
+        return x in data.columns
+    except TypeError:
+        return False
+
+
+def _check_agg_with_overall_input(
+    data: pd.DataFrame, overall_var: Hashable, by_vars: Hashable | Iterable[Hashable] | None
+) -> tuple[pd.DataFrame, Hashable, list[Hashable]]:
+    # Check overall_var is valid
+    if overall_var not in data.columns:
+        raise KeyError(f"{overall_var!r} is not a column in `data`.")
+
+    # Cast by_vars to list
+    if by_vars is None:
+        by_vars = [overall_var]
+    elif _is_column_label(data, by_vars):
+        by_vars = [by_vars]
+    else:
+        by_vars = cast(Iterable[Hashable], by_vars)
+        by_vars = list(by_vars)
+
+    # Add overall_var if not present in by_vars
+    if overall_var not in by_vars:
+        by_vars = [overall_var, *by_vars]
+
+    return data, overall_var, by_vars
+
+
+def agg_with_overall(
+    data: pd.DataFrame,
+    overall_var: Hashable,
+    *agg_args: Any,
+    by_vars: Hashable | Iterable[Hashable] | None = None,
+    overall_label: Hashable = "all",
+    observed: bool = False,
+    **agg_kwargs: Any,
+) -> pd.DataFrame:
+    """Aggregate by groups and add an overall group.
+
+    `overall_var` is the grouping variable whose value is replaced by `overall_label` for the overall rows.
+    """
+    data, overall_var, by_vars = _check_agg_with_overall_input(data, overall_var, by_vars)
+
+    data_grouped = data.copy()
+
+    if (
+        isinstance(data_grouped[overall_var].dtype, pd.CategoricalDtype)
+        and overall_label not in data_grouped[overall_var].cat.categories
+    ):
+        data_grouped[overall_var] = data_grouped[overall_var].cat.add_categories(overall_label)
+
+    data_overall = data_grouped.assign(
+        **{overall_var: lambda x: pd.Series(overall_label, index=x.index, dtype=x[overall_var].dtype)}  # type: ignore
+    )
+
+    return (
+        pd.concat([data_grouped, data_overall], ignore_index=False)
+        .groupby(by_vars, observed=observed)
+        .agg(*agg_args, **agg_kwargs)
+    )
+
+
+@overload
+def partial_fn_with_info[R](
+    fn: Callable[..., R],
+    /,
+    ignore_nan: bool = False,
+    empty_value: float = np.nan,
+    *args: pd.Series | None,
+    **kwargs: pd.Series | None,
+) -> Callable[[pd.Series], R | float]: ...
+@overload
+def partial_fn_with_info[R, E](
+    fn: Callable[..., R],
+    /,
+    ignore_nan: bool,
+    empty_value: E = ...,
+    *args: pd.Series | None,
+    **kwargs: pd.Series | None,
+) -> Callable[[pd.Series], R | E]: ...
+def partial_fn_with_info[R, E](
+    fn: Callable[..., R],
+    /,
+    ignore_nan: bool = False,
+    empty_value: E | float = np.nan,
+    *args: pd.Series | None,
+    **kwargs: pd.Series | None,
+) -> Callable[[pd.Series], R | E | float]:
+    """
+    Returns the input function with additional information already supplied.
+
+    The returned function takes an input with a subset of the indices present in the additional information (`args` and
+    `kwargs`), fn is then called with additional information that matches the index of the input. If `ignore_nan` is set
+    to `True`, indices where the input is `np.nan` are not passed to the fn. `empty_value` is returned if the index is
+    empty of the input to x.
+    """
+
+    def f(x: pd.Series) -> R | E | float:
+        idx = x.notna()[lambda x: x].index if ignore_nan else x.index
+        if len(idx) == 0:
+            return empty_value
+        return fn(
+            x.loc[idx],
+            *(arg if arg is None else arg.loc[idx] for arg in args),
+            **{k: v if v is None else v.loc[idx] for k, v in kwargs.items()},
+        )
+
+    return f
