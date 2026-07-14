@@ -31,6 +31,7 @@ from sklearn.utils.validation import check_is_fitted
 
 # Copied from sklearn and modified the following methods to enable sample weights:
 # _initialize_parameters, fit, fit_predict, _e_step, and score
+# ruff: disable[RUF012, PIE790, B028, UP031, B905]
 class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
     """Base class for mixture models.
 
@@ -641,8 +642,12 @@ def _estimate_gaussian_parameters(X, resp, reg_covar, covariance_type, sample_we
     return nk, means, covariances
 
 
+# ruff: enable[RUF012, PIE790, B028, UP031, B905]
+
+
 # Copied from sklearn and modified the following methods to enable sample weights:
 # _initialize_parameters, _initialize, _m_step, bic, and aic
+# ruff: disable[RUF012]
 class GaussianMixture(BaseMixture):
     """Gaussian Mixture.
 
@@ -1066,3 +1071,6 @@ class GaussianMixture(BaseMixture):
         """
         n_eff = X.shape[0] if sample_weight is None else sample_weight.sum()
         return -2 * self.score(X, sample_weight=sample_weight) * n_eff + 2 * self._n_parameters()
+
+
+# ruff: enable[RUF012]

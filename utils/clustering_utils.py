@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from typing import Any
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -21,27 +20,18 @@ from utils.metrics_utils import (
     silhouette_score,
     variation_of_information,
 )
-from utils.misc_utils import contingency_matrix, std_weighted
+from utils.misc_utils import (
+    agg_with_overall,
+    contingency_matrix,
+    partial_fn_with_info,
+    std_weighted,
+    turn_cats_to_continuous,
+    value_counts,
+)
+from utils.saving_utils import DatasetBundle
 
 pd.options.mode.copy_on_write = True
 pd.options.future.infer_string = True
-
-
-def print_clustering_info(
-    cluster_labels: pd.Series[pd.CategoricalDtype],
-    sort_by_size: bool = False,
-    sample_weight: np.typing.ArrayLike | None = None,
-) -> None:
-    """Prints some information about a clustering."""
-    print(f"{len(cluster_labels.cat.categories.values)} clusters, {100 * cluster_labels.isna().mean():0.2f}% outliers")
-    if sample_weight is None:
-        cluster_frequencies = cluster_labels.value_counts(normalize=True, ascending=False, dropna=False)
-    else:
-        cluster_frequencies = pd.Series(sample_weight).groupby(cluster_labels, dropna=False).sum()
-        cluster_frequencies = (cluster_frequencies / cluster_frequencies.sum()).sort_values(ascending=False)
-    if not sort_by_size:
-        cluster_frequencies = cluster_frequencies.sort_index()
-    print(f"Percentage in clusters: {cluster_frequencies.apply(lambda x: 100 * x).to_dict()}")
 
 
 def predict_clustering_labels(model: BaseEstimator, data: pd.DataFrame) -> pd.Series[pd.CategoricalDtype]:
@@ -61,36 +51,76 @@ def predict_clustering_proba(model: BaseEstimator, data: pd.DataFrame) -> pd.Dat
 
 
 def cluster_summaries(
-    data: pd.DataFrame, labels: pd.Series[pd.CategoricalDtype], sample_weight: np.typing.ArrayLike | None = None
-) -> pd.DataFrame:
+    data: DatasetBundle, labels: pd.Series[pd.CategoricalDtype], sample_weight: np.typing.ArrayLike | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Cluster summaries (mean and std).
+    Cluster summaries.
 
-    The data must not contain categorical columns. The indices of data and labels have to line up.
+    Returns a tuple containing means and standard deviations for continuous, binary, and ordinal variables, and counts
+    for nominal variables. The indices of data and labels have to line up.
     """
-    sample_weight = pd.Series(sample_weight, index=data.index)
+    # Don't modify the input
+    data = data.copy()
 
-    def weighted_agg(val: pd.Series, fn: Callable) -> Any:
-        mask = val.notna()
-        x = val[mask]
-        w = sample_weight.loc[x.index]
-        try:
-            return fn(x.to_numpy(), weights=w.to_numpy())
-        except ZeroDivisionError:
-            return pd.NA
+    if data.meta is None:
+        raise ValueError("'data.meta' may not be None.")
 
-    def _summarize_data(data: pd.DataFrame) -> pd.Series:
-        out = {}
-        for col in data.columns:
-            out[f"{col}_mean"] = weighted_agg(data[col], np.average)
-            out[f"{col}_std"] = weighted_agg(data[col], std_weighted)
-        return pd.Series(out)
+    # Convert and split data types
+    treat_cat_as_continuous = data.meta.loc[lambda x: x["type"].isin(["binary", "ordinal"]), "name"]
+    data_with_converted_types = turn_cats_to_continuous(data.data, treat_cat_as_continuous)
+    data_not_nominal = data_with_converted_types.select_dtypes(exclude="category")
+    data_nominal = data_with_converted_types.select_dtypes(include="category")
 
-    return (
-        data.assign(**{"cluster": labels})
-        .groupby("cluster", observed=True)
-        .apply(_summarize_data, include_groups=False)
+    # Make summaries for continuous, binary, and ordinal variables
+    agg_weights = None if sample_weight is None else pd.Series(sample_weight, index=data_with_converted_types.index)
+    cluster_summaries_not_nominal = agg_with_overall(
+        data_not_nominal.assign(**{"cluster": labels}),
+        "cluster",
+        [
+            ("mean", partial_fn_with_info(np.average, ignore_nan=True, weights=agg_weights)),
+            ("std", partial_fn_with_info(std_weighted, ignore_nan=True, weights=agg_weights)),
+        ],
+        overall_label="all",
     )
+
+    # Make summaries for nominal variables
+    cluster_dtype = labels.cat.add_categories("all").dtype
+    index_summaries_nominal = (
+        pd.DataFrame(
+            [
+                (cluster, col, value)
+                for cluster in cluster_dtype.categories
+                for col in data_nominal.columns
+                for value in data_nominal[col].cat.categories
+            ],
+            columns=pd.Index(["cluster", "variable", "value"]),
+        )
+        .assign(**{"cluster": lambda x: x["cluster"].astype(cluster_dtype)})
+        .pipe(pd.MultiIndex.from_frame)
+    )
+    cluster_summaries_nominal = (
+        agg_with_overall(
+            (
+                data_nominal.assign(**{"cluster": labels})
+                .pipe(lambda x: x if sample_weight is None else x.assign(**{"weight": sample_weight}))
+                .melt(
+                    id_vars="cluster" if sample_weight is None else ["cluster", "weight"],
+                    value_vars=data_nominal.columns,
+                    var_name="variable",
+                    value_name="value",
+                )
+            ),
+            "cluster",
+            **{"n": ("cluster", "count") if sample_weight is None else ("weight", "sum")},
+            by_vars=["cluster", "variable", "value"],
+            overall_label="all",
+            observed=True,
+        )
+        .reindex(index_summaries_nominal, fill_value=0)
+        .reset_index()
+    )
+
+    return cluster_summaries_not_nominal, cluster_summaries_nominal
 
 
 def print_cluster_statistics(
@@ -116,7 +146,13 @@ def print_cluster_statistics(
         cluster_labels_list, datas, sample_weights, labels_padded, strict=True
     ):
         print(label_padded.capitalize(), end="")
-        print_clustering_info(cluster_labels, sort_by_size=True, sample_weight=sample_weight)
+        print(
+            value_counts(cluster_labels, sort=True, normalize=True, dropna=False, sample_weight=sample_weight)
+            .apply(lambda x: f"{100 * x:.2f}%")
+            .to_frame()
+            .reset_index(names="cluster")
+            .to_dict()
+        )
     print("")
 
     for cluster_labels, data, sample_weight, label_padded in zip(

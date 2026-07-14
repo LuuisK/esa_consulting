@@ -2,19 +2,29 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from pathlib import Path
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 import plotnine as p9
 from matplotlib import font_manager
 from sklearn.decomposition import PCA
-from sklearn.metrics import silhouette_samples
 from sklearn.mixture._base import BaseMixture
 from sklearn.model_selection import GridSearchCV
+from sklearn.utils.validation import _check_sample_weight
 
 from utils.corr_assoc_utils import create_corr_assoc_matrix
-from utils.misc_utils import contingency_table
+from utils.metrics_utils import silhouette_samples
+from utils.misc_utils import (
+    agg_with_overall,
+    clip_data_quantiles,
+    contingency_table,
+    partial_fn_with_info,
+    std_weighted,
+    turn_cats_to_continuous,
+)
 
 pd.options.mode.copy_on_write = True
 pd.options.future.infer_string = True
@@ -48,51 +58,83 @@ colors_pyplot = [
     "#17becf",
 ]
 
-theme_ggplot: p9.theme = (
-    p9.theme_bw(base_family=font_name)
-    + p9.theme(
-        text=p9.element_text(color=default_color),
-        axis_text=p9.element_text(color=default_color),
-        axis_title=p9.element_text(color=default_color),
-        legend_text=p9.element_text(color=default_color),
-        legend_title=p9.element_text(color=default_color),
-        plot_title=p9.element_text(color=default_color),
-        strip_text=p9.element_text(color=default_color),
-    )
+theme_ggplot: p9.theme = p9.theme_bw(base_family=font_name) + p9.theme(
+    text=p9.element_text(color=default_color),
+    axis_text=p9.element_text(color=default_color),
+    axis_title=p9.element_text(color=default_color),
+    legend_text=p9.element_text(color=default_color),
+    legend_title=p9.element_text(color=default_color),
+    plot_title=p9.element_text(color=default_color),
+    strip_text=p9.element_text(color=default_color),
 )
 
 scale_color_ggplot = p9.scale_color_hue()
 scale_fill_ggplot = p9.scale_fill_hue()
 
 
-def make_plot_2d_data(data: pd.DataFrame, cluster_labels: pd.Series[pd.CategoricalDtype] | None = None):
+def make_plot_2d_data(
+    data: pd.DataFrame,
+    comps: tuple[int, int] | list[tuple[int, int]],
+    labels: pd.Series | None = None,
+    quantiles: tuple[float, float] = (0, 1),
+    method: Literal["clip", "drop"] = "clip",
+) -> p9.ggplot:
     """
-    Creates a plot of a 2d dataset.
+    Creates a plot of a 2D dataset.
 
-    The x and y coordinates are the first and second column of the data. If cluster labels are provided the points are
-    colored by cluster membership.
+    Which columns are plotted as x and y coordinates can be specified by position in `comps`. If cluster labels are
+    provided the points are colored by cluster membership. The `quantiles` and `method` parameters are used to clip
+    extreme quantiles in each facet of the plot.
     """
+
     # Copy data so the original object is not modified
     data = data.copy()
 
+    single_plot = isinstance(comps, tuple)
+    comps = [comps] if single_plot else comps
+
+    # Data-frame of every combination of components with clipped extreme percentiles
+    dims_dtype = pd.CategoricalDtype([f"{data.columns[i]} vs {data.columns[j]}" for i, j in comps])
+    data_2d = pd.concat(
+        [
+            pd.DataFrame(
+                {
+                    "x": data.iloc[:, i],
+                    "y": data.iloc[:, j],
+                    "dims": pd.Series(dims_dtype.categories[k], index=data.index, dtype=dims_dtype),
+                }
+                | ({} if labels is None else {"cluster": labels})
+            )
+            .pipe(clip_data_quantiles, var_name="x", quantiles=quantiles, method=method)
+            .pipe(clip_data_quantiles, var_name="y", quantiles=quantiles, method=method)
+            for k, (i, j) in enumerate(comps)
+        ],
+        ignore_index=True,
+    )
+
     # Color based on clustering if provided
     aes_kwargs = {}
-    geom_point_kwargs = {}
-    if cluster_labels is not None:
-        data["cluster"] = cluster_labels
-        aes_kwargs |= dict(fill="cluster")
+    if labels is not None:
+        aes_kwargs |= {"fill": "cluster"}
 
     # Create plot
+    data_2d = data_2d.rename(columns=lambda x: str(x))
     plot = (
-        p9.ggplot(data)
-        + p9.aes(x=data.columns[0], y=data.columns[1], **aes_kwargs)
-        + p9.geom_point(alpha=0.3, **geom_point_kwargs, color="none")
-        + scale_color_ggplot
+        p9.ggplot(data_2d)
+        + p9.aes(x=data_2d.columns[0], y=data_2d.columns[1], **aes_kwargs)
+        + p9.geom_point(alpha=0.3, color="none")
         + scale_fill_ggplot
         + p9.guides(fill=p9.guide_legend(override_aes={"size": 5, "alpha": 1}))
         + theme_ggplot
     )
-    return plot
+    if single_plot:
+        return plot + p9.labs(x=data.columns[comps[0][0]], y=data.columns[comps[0][1]])
+    else:
+        return (
+            plot
+            + p9.theme(axis_title_x=p9.element_blank(), axis_title_y=p9.element_blank())
+            + p9.facet_wrap("dims", scales="free")
+        )
 
 
 def make_plot_corr_assoc_matrix(data: pd.DataFrame) -> p9.ggplot:
@@ -250,10 +292,12 @@ def make_plot_mixture_weights(model: BaseMixture) -> p9.ggplot:
     return plot_weights
 
 
-def make_plot_silhouette(data: pd.DataFrame, cluster_labels: pd.Series[pd.CategoricalDtype]) -> p9.ggplot:
+def make_plot_silhouette(
+    data: pd.DataFrame, cluster_labels: pd.Series[pd.CategoricalDtype], sample_weight: np.typing.ArrayLike | None = None
+) -> p9.ggplot:
     """Creates a silhouette plot."""
     # Compute silhouettes
-    silhouettes = silhouette_samples(data, cluster_labels, metric="euclidean")
+    silhouettes = silhouette_samples(data, cluster_labels, sample_weight=sample_weight, metric="euclidean")
 
     # Create ggplot data
     data_ggplot = pd.DataFrame({"cluster": cluster_labels, "silhouette": silhouettes})
@@ -319,3 +363,215 @@ def make_plot_contingency_table(
         + theme_ggplot
     )
     return cont_table_plot
+
+
+def make_plot_grid_search(
+    metrics_grid_search: pd.DataFrame, x: str, metrics: str | tuple[str] | None = None
+) -> p9.ggplot:
+    """
+    Creates a plot of grid-search metrics.
+
+    The input data-frame needs the columns "metric, "mean", and "std". If metrics is `None` all metrics are plotted.
+    """
+    if isinstance(metrics, str):
+        metrics = (metrics,)
+    elif metrics is None:
+        metrics = tuple(metrics_grid_search["metric"].unique())
+
+    data_ggplot = metrics_grid_search[lambda x: x["metric"].isin(metrics)]
+    return (
+        p9.ggplot(data_ggplot)
+        + p9.aes(x=x, y="mean")
+        + p9.geom_ribbon(p9.aes(ymin="mean - std", ymax="mean + std"), alpha=0.2)
+        + p9.geom_line()
+        + (None if len(metrics) <= 1 else p9.facet_wrap("metric", scales="free_y"))
+        + p9.labs(x=x, y="values")
+        + theme_ggplot
+    )
+
+
+def make_plot_continuous_var_dist_by_cluster(
+    data: pd.DataFrame,
+    labels: pd.Series[pd.CategoricalDtype],
+    var: str,
+    quantiles: Iterable[float] | None = None,
+    sample_weight: pd.Series | np.typing.ArrayLike | None = None,
+    sort: bool = False,
+    ascending: bool = False,
+    cluster_size_decimals: int = 0,
+    column_size: int = 4,
+) -> p9.ggplot:
+    """
+    Creates the plot of the distribution of a continuous variable in each cluster.
+
+    If a categorical variable is given, its (ordered) category codes are treated as a continuous variable. Above each
+    distribution, the (effective) cluster size is shown. If sort the clusters in the plot are sorted by mean.
+    """
+    # Process quantiles
+    quantiles = [0.02, 0.1, 0.33, 0.5, 0.67, 0.9, 0.98] if quantiles is None else list(quantiles)
+    if 0.5 not in quantiles:
+        quantiles = [*quantiles, 0.5]
+    quantiles = sorted(quantiles)
+
+    # Add cluster labels and sample weights to data
+    data_full = (
+        data[[var]]
+        .pipe(lambda x: turn_cats_to_continuous(x, [var]) if x[var].dtype == "category" else x)
+        .assign(**{"cluster": labels})
+    )
+    if sample_weight is not None:
+        data_full = data_full.assign(
+            **{
+                "weight": sample_weight[data.index]
+                if isinstance(sample_weight, pd.Series)
+                else _check_sample_weight(sample_weight, data.to_numpy())
+            }
+        )
+
+    # Get statistics of the variable for each cluster and overall
+    agg_spec = {
+        "mean": (var, partial_fn_with_info(np.average, ignore_nan=True, weights=getattr(data_full, "weight", None))),
+        "std": (var, partial_fn_with_info(std_weighted, ignore_nan=True, weights=getattr(data_full, "weight", None))),
+        **{
+            f"q{q:g}": (
+                var,
+                partial_fn_with_info(
+                    lambda x, q=q, **kws: np.float64(np.quantile(x, q, method="inverted_cdf", **kws)),
+                    ignore_nan=True,
+                    weights=getattr(data_full, "weight", None),
+                ),
+            )
+            for q in quantiles
+        },
+        "n": (var, "count") if sample_weight is None else ("weight", "sum"),
+    }
+    statistics = agg_with_overall(data_full, "cluster", **agg_spec, overall_label="all", observed=False).assign(
+        **{
+            "n_str": lambda x: (
+                x["n"]
+                .round(cluster_size_decimals)
+                .pipe(lambda y: y.astype("int") if sample_weight is None or cluster_size_decimals <= 0 else y)
+                .astype("str")
+            )
+        }
+    )
+
+    # Get data for plotting quantile bands
+    data_ggplot = (
+        statistics.reset_index()
+        .drop(columns=["mean", "std", "n", "n_str"])
+        .pipe(lambda x: pd.wide_to_long(x, "q", i="cluster", j="quantile", sep="", suffix=r"[\d.]+"))
+        .rename(columns={"q": "value"})
+        .reset_index()
+        .assign(
+            **{
+                "quantile_next": lambda x: x.groupby("cluster", observed=False)["quantile"].shift(-1),
+                "value_next": lambda x: x.groupby("cluster", observed=False)["value"].shift(-1),
+            }
+        )
+        .dropna(subset=["quantile_next", "value_next"])
+    )
+
+    # X axis ticks ordered
+    x_axis_ordering = statistics.pipe(
+        lambda x: x.sort_values(["mean", "std"], ascending=(ascending, not ascending)) if sort else x
+    ).index.to_list()
+
+    # Make legend labels for quantile bands
+    legend_labels = {x: f"q{x}–q{quantiles[i + 1]}" for i, x in enumerate(quantiles[:-1])}
+
+    # Construct plot
+    return (
+        p9.ggplot(data_ggplot)
+        + p9.aes(x="cluster", xend="cluster", y="value", yend="value_next", color="factor(quantile, ordered=True)")
+        + p9.geom_segment(size=column_size)
+        + p9.geom_point(
+            p9.aes(x="cluster", y="q0.5"), statistics.reset_index(), shape="_", inherit_aes=False, size=column_size - 1
+        )
+        + p9.geom_text(
+            p9.aes(x="cluster", y=f"q{np.max(quantiles):g}", label="n_str"),
+            statistics.reset_index(),
+            inherit_aes=False,
+            va="bottom",
+            nudge_y=0.03 * (data_full[var].max() - data_full[var].min()),
+            size=8,
+        )
+        + p9.scale_x_discrete(limits=x_axis_ordering)
+        + p9.scale_color_cmap_d(cmap_name="viridis", name="Quantile band", labels=legend_labels)  # type: ignore
+        + theme_ggplot
+    )
+
+
+def make_plot_categorical_var_dist_by_cluster(
+    data: pd.DataFrame,
+    labels: pd.Series[pd.CategoricalDtype],
+    var: str,
+    sample_weight: pd.Series | np.typing.ArrayLike | None = None,
+    cluster_size_decimals: int = 0,
+    value_labels: Mapping[Any, Any] | None = None,
+) -> p9.ggplot:
+    """Creates the plot of the distribution of a categorical variable in each cluster."""
+
+    # Add cluster labels and sample weights to data
+    data_full = data[[var]].assign(**{"cluster": labels})
+    if sample_weight is not None:
+        data_full = data_full.assign(
+            **{
+                "weight": sample_weight[data.index]
+                if isinstance(sample_weight, pd.Series)
+                else _check_sample_weight(sample_weight, data.to_numpy())
+            }
+        )
+
+    # Get statistics of the variable for each cluster and overall
+    statistics = agg_with_overall(
+        data_full,
+        "cluster",
+        **{"n": (var, "count") if sample_weight is None else ("weight", "sum")},
+        overall_label="all",
+        observed=False,
+    ).assign(
+        **{
+            "n_str": lambda x: (
+                x["n"]
+                .round(cluster_size_decimals)
+                .pipe(lambda y: y.astype("int") if sample_weight is None or cluster_size_decimals <= 0 else y)
+                .astype("str")
+            )
+        }
+    )
+
+    # Get data for plotting value counts
+    data_ggplot = (
+        agg_with_overall(
+            data_full,
+            "cluster",
+            **{"n": (var, "count") if sample_weight is None else ("weight", "sum")},
+            by_vars=["cluster", var],
+            overall_label="all",
+            observed=False,
+        )
+        .reset_index()
+        .assign(
+            **{
+                "proportion": lambda x: x["n"].div(statistics.loc[x["cluster"], "n"].values),
+                "cluster": lambda x: x["cluster"].cat.rename_categories(
+                    lambda x: f"{x}  ({statistics.loc[x, 'n_str']})"
+                ),
+            }
+        )
+    )
+
+    # Construct plot
+    return (
+        p9.ggplot(data_ggplot)
+        + p9.aes(x=var, y="proportion")
+        + p9.geom_bar(stat=p9.stat_identity())
+        + p9.coord_flip()
+        + p9.facet_wrap("cluster")
+        + p9.scale_x_discrete(
+            limits=lambda x: list(reversed(x)), labels=True if value_labels is None else dict(value_labels), drop=False
+        )
+        + theme_ggplot
+        + p9.theme(axis_text_x=p9.element_text(rotation=270))
+    )

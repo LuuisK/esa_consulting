@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import pickle
 import warnings
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -58,12 +59,13 @@ class DatasetBundle:
         folder = path.parent
         data_name = path.name
         files = os.listdir(folder)
-        return cls(
+        bundle = cls(
             pd.read_parquet(Path(folder, f"{data_name}.parquet")),
             pd.read_parquet(Path(folder, file_name)) if (file_name := f"{data_name}__meta.parquet") in files else None,
             pd.read_parquet(Path(folder, file_name)) if (file_name := f"{data_name}__na.parquet") in files else None,
         )
         print(f"Loaded dataset from {path}.")
+        return bundle
 
     def copy(self) -> DatasetBundle:
         """Copy."""
@@ -71,6 +73,14 @@ class DatasetBundle:
             self.data.copy(),
             None if self.meta is None else self.meta.copy(),
             None if self.na is None else self.na.copy(),
+        )
+
+    def drop(self, vars: str | Iterable[str]) -> DatasetBundle:
+        vars = [vars] if isinstance(vars, str) else list(vars)
+        return DatasetBundle(
+            self.data.drop(columns=vars),
+            None if self.meta is None else self.meta[lambda x: ~x["name"].isin(vars)],
+            None if self.na is None else self.na.drop(columns=vars),
         )
 
 
