@@ -1,3 +1,5 @@
+"""Module with utilities for asserting relations between variables."""
+
 from __future__ import annotations
 
 import textwrap
@@ -63,10 +65,9 @@ def impute_value(data: DatasetBundle, mask, var: str, value: Any) -> DatasetBund
     Note: If the variable is categorical and the category `value` doesn't exist it is created with a warning.
     """
     series = data.data[var]
-    if isinstance(series.dtype, pd.CategoricalDtype):
-        if value not in series.cat.categories:
-            warnings.warn(f"Created new category {value} for {var}.")
-            data.data[var] = series.cat.add_categories([value])
+    if isinstance(series.dtype, pd.CategoricalDtype) and value not in series.cat.categories:
+        warnings.warn(f"Created new category {value} for {var}.", stacklevel=1)
+        data.data[var] = series.cat.add_categories(value)
     data.data.loc[mask, var] = value
 
     imputed_cat = "rule imputed"
@@ -118,16 +119,16 @@ def _enforce_rule(
                 )
                 try:
                     series.iloc[0] = value[0]
-                except TypeError:
+                except TypeError as err:
                     raise TypeError(
                         f"Variable `{var}` has value `{value}`, which is not an existing category, in `implies` "
                         f"argument of rule {implication_rule}."
-                    )
-                except FutureWarning:
+                    ) from err
+                except FutureWarning as err:
                     raise TypeError(
                         f"Variable `{var}` has value `{value}`, which has incompatible dtype, in `implies` argument of "
                         f"rule {implication_rule}."
-                    )
+                    ) from err
 
             # Finally build condition
             condition &= data.data[var].isin(value)
@@ -159,7 +160,8 @@ def _enforce_rule(
         for var, count in imputation_warning.items():
             value = rule.equivalent[var] if isinstance(rule, EquivalenceRule) else rule.is_implied[var]
             warnings.warn(
-                f"Failed {count} times to impute {var}, because there are several possible imputation values {value}."
+                f"Failed {count} times to impute {var}, because there are several possible imputation values {value}.",
+                stacklevel=1,
             )
 
     return data, na_count, failure_count

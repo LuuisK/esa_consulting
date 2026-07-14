@@ -4,16 +4,23 @@ from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Iterable
 from typing import Any, Literal, cast, overload
+from typing import Literal as L
 
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 from IPython.display import HTML, display
+from numpy import bool_, complexfloating, floating
+from numpy._globals import _NoValueType
+from numpy._typing import _ArrayLikeComplex_co, _ArrayLikeFloat_co, _ArrayLikeObject_co, _ShapeLike
 from numpy.lib._function_base_impl import _weights_are_valid  # type: ignore
 from numpy.lib.array_utils import normalize_axis_tuple
 
 pd.options.mode.copy_on_write = True
 pd.options.future.infer_string = True
+
+type _2Tuple[_T] = tuple[_T, _T]
+type Incomplete = Any
 
 
 def turn_cats_to_continuous(data: pd.DataFrame, treat_cat_as_continuous: Iterable[str] | None) -> pd.DataFrame:
@@ -39,11 +46,7 @@ def stack_dataframes(dataframes: dict[str, pd.DataFrame]) -> pd.DataFrame:
 
 def make_nan_a_value(x: pd.Series) -> pd.Series:
     """Make NaN into a value (convert to string dtype if necessary)."""
-    if x.dtype == "category":
-        x = x.cat.add_categories(["NaN"]).fillna("NaN")
-    else:
-        x = x.astype("str").fillna("NaN")
-    return x
+    return x.cat.add_categories(["NaN"]).fillna("NaN") if x.dtype == "category" else x.astype("str").fillna("NaN")
 
 
 def contingency_table(index: pd.Series, columns: pd.Series, dropna: bool = False, **kwargs) -> pd.DataFrame:
@@ -69,6 +72,60 @@ def contingency_table(index: pd.Series, columns: pd.Series, dropna: bool = False
 
 
 # Largely copied from numpy.average
+@overload
+def var_weighted(
+    a: _ArrayLikeFloat_co,
+    axis: None = None,
+    weights: _ArrayLikeFloat_co | None = None,
+    returned: L[False] = False,
+    *,
+    keepdims: L[False] | _NoValueType = ...,
+) -> floating: ...
+@overload
+def var_weighted(
+    a: _ArrayLikeFloat_co,
+    axis: None = None,
+    weights: _ArrayLikeFloat_co | None = None,
+    *,
+    returned: L[True],
+    keepdims: L[False] | _NoValueType = ...,
+) -> _2Tuple[floating]: ...
+@overload
+def var_weighted(
+    a: _ArrayLikeComplex_co,
+    axis: None = None,
+    weights: _ArrayLikeComplex_co | None = None,
+    returned: L[False] = False,
+    *,
+    keepdims: L[False] | _NoValueType = ...,
+) -> complexfloating: ...
+@overload
+def var_weighted(
+    a: _ArrayLikeComplex_co,
+    axis: None = None,
+    weights: _ArrayLikeComplex_co | None = None,
+    *,
+    returned: L[True],
+    keepdims: L[False] | _NoValueType = ...,
+) -> _2Tuple[complexfloating]: ...
+@overload
+def var_weighted(
+    a: _ArrayLikeComplex_co | _ArrayLikeObject_co,
+    axis: _ShapeLike | None = None,
+    weights: object | None = None,
+    *,
+    returned: L[True],
+    keepdims: bool | bool_ | _NoValueType = ...,
+) -> _2Tuple[Incomplete]: ...
+@overload
+def var_weighted(
+    a: _ArrayLikeComplex_co | _ArrayLikeObject_co,
+    axis: _ShapeLike | None = None,
+    weights: object | None = None,
+    returned: bool | bool_ = False,
+    *,
+    keepdims: bool | bool_ | _NoValueType = ...,
+) -> Incomplete: ...
 # ruff: disable[SIM108]
 def var_weighted(a, axis=None, weights=None, returned=False, *, keepdims=np._NoValue):
     a = np.asanyarray(a)
@@ -113,6 +170,60 @@ def var_weighted(a, axis=None, weights=None, returned=False, *, keepdims=np._NoV
 # ruff: enable[SIM108]
 
 
+@overload
+def std_weighted(
+    a: _ArrayLikeFloat_co,
+    axis: None = None,
+    weights: _ArrayLikeFloat_co | None = None,
+    returned: L[False] = False,
+    *,
+    keepdims: L[False] | _NoValueType = ...,
+) -> floating: ...
+@overload
+def std_weighted(
+    a: _ArrayLikeFloat_co,
+    axis: None = None,
+    weights: _ArrayLikeFloat_co | None = None,
+    *,
+    returned: L[True],
+    keepdims: L[False] | _NoValueType = ...,
+) -> _2Tuple[floating]: ...
+@overload
+def std_weighted(
+    a: _ArrayLikeComplex_co,
+    axis: None = None,
+    weights: _ArrayLikeComplex_co | None = None,
+    returned: L[False] = False,
+    *,
+    keepdims: L[False] | _NoValueType = ...,
+) -> complexfloating: ...
+@overload
+def std_weighted(
+    a: _ArrayLikeComplex_co,
+    axis: None = None,
+    weights: _ArrayLikeComplex_co | None = None,
+    *,
+    returned: L[True],
+    keepdims: L[False] | _NoValueType = ...,
+) -> _2Tuple[complexfloating]: ...
+@overload
+def std_weighted(
+    a: _ArrayLikeComplex_co | _ArrayLikeObject_co,
+    axis: _ShapeLike | None = None,
+    weights: object | None = None,
+    *,
+    returned: L[True],
+    keepdims: bool | bool_ | _NoValueType = ...,
+) -> _2Tuple[Incomplete]: ...
+@overload
+def std_weighted(
+    a: _ArrayLikeComplex_co | _ArrayLikeObject_co,
+    axis: _ShapeLike | None = None,
+    weights: object | None = None,
+    returned: bool | bool_ = False,
+    *,
+    keepdims: bool | bool_ | _NoValueType = ...,
+) -> Incomplete: ...
 def std_weighted(a, axis=None, weights=None, returned=False, *, keepdims=np._NoValue):
     return np.sqrt(var_weighted(a, axis=axis, weights=weights, returned=returned, keepdims=keepdims))
 

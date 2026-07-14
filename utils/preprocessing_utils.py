@@ -46,7 +46,7 @@ def sort_groups_meta(data: DatasetBundle, groups_by_name: dict[str, list[str]]) 
 
     # Check that there are no multiply assigned variables
     all_grouped_vars = list(itertools.chain.from_iterable(groups_by_name.values()))
-    duplicates = set([var for var in all_grouped_vars if all_grouped_vars.count(var) > 1])
+    duplicates = {var for var in all_grouped_vars if all_grouped_vars.count(var) > 1}
     if len(duplicates) != 0:
         raise ValueError(f"Some variables have multiple group membership: {duplicates}.")
 
@@ -79,7 +79,7 @@ def sort_types_meta(data: DatasetBundle, types_by_name: dict[str, list[str]]) ->
 
     # Check that there are no multiply assigned variables
     all_typed_vars = list(itertools.chain.from_iterable(types_by_name.values()))
-    duplicates = set([var for var in all_typed_vars if all_typed_vars.count(var) > 1])
+    duplicates = {var for var in all_typed_vars if all_typed_vars.count(var) > 1}
     if len(duplicates) != 0:
         raise ValueError(f"Some variables have several types: {duplicates}.")
 

@@ -52,8 +52,6 @@ colors_pyplot <- c(
 # scale_color_ggplot <- scale_color_hue()
 # scale_fill_ggplot <- scale_fill_hue()
 
-
-
 theme_ggplot <- theme_bw(base_family = font_name) +
     theme(
         text = element_text(color = "black"),
@@ -67,10 +65,3 @@ theme_ggplot <- theme_bw(base_family = font_name) +
 
 scale_color_ggplot <- scale_color_manual(values = colors_pyplot)
 scale_fill_ggplot <- scale_fill_manual(values = colors_pyplot)
-
-data.frame(x = c(0, 1, 2, 3), y = c(1, 1, 2, 2)) |>
-    ggplot() +
-    aes(x = x, y = y) +
-    geom_line() +
-    labs(x = "x", y = "y", title = "Test title") +
-    theme_ggplot

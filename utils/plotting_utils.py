@@ -58,17 +58,14 @@ colors_pyplot = [
     "#17becf",
 ]
 
-theme_ggplot: p9.theme = (
-    p9.theme_bw(base_family=font_name)
-    + p9.theme(
-        text=p9.element_text(color=default_color),
-        axis_text=p9.element_text(color=default_color),
-        axis_title=p9.element_text(color=default_color),
-        legend_text=p9.element_text(color=default_color),
-        legend_title=p9.element_text(color=default_color),
-        plot_title=p9.element_text(color=default_color),
-        strip_text=p9.element_text(color=default_color),
-    )
+theme_ggplot: p9.theme = p9.theme_bw(base_family=font_name) + p9.theme(
+    text=p9.element_text(color=default_color),
+    axis_text=p9.element_text(color=default_color),
+    axis_title=p9.element_text(color=default_color),
+    legend_text=p9.element_text(color=default_color),
+    legend_title=p9.element_text(color=default_color),
+    plot_title=p9.element_text(color=default_color),
+    strip_text=p9.element_text(color=default_color),
 )
 
 scale_color_ggplot = p9.scale_color_hue()

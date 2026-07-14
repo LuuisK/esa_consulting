@@ -7,6 +7,7 @@ library(arrow) # read and write parquet
 library(checkmate) # assertions
 library(dplyr) # data-frame methods
 library(FactoMineR) # MFA
+library(rlang) # data-masking
 
 source(file.path("utils/saving_utils.R"))
 
@@ -23,12 +24,23 @@ n_comp <- 10
 
 
 #' Function for MFA
-do_mfa <- function(data, n_comp, ...) {
+do_mfa <- function(data, n_comp, weight_var = NULL, ...) {
     assert_list(data)
     assert_int(n_comp, lower = 0)
 
+    weight_var <- enquo(weight_var)
+
+    weights <- NULL
+    if (!quo_is_null(weight_var)) {
+        weights <- data$data |> pull(!!weight_var)
+        data <- list(
+            data = data$data |> select(-!!weight_var),
+            meta = data$meta |> filter(name != as_name(weight_var))
+        )
+    }
+
     vars_sorted <- data$meta |> arrange(group) |> pull(name)
-    data_sorted <- data$data[vars_sorted]
+    data_sorted <- data$data |> select(all_of(vars_sorted))
     type_fn <- function(type) {
         if (all(type == "continuous")) {
             "s"
@@ -47,31 +59,14 @@ do_mfa <- function(data, n_comp, ...) {
         group = group_info$size,
         type = group_info$type,
         ncp = n_comp,
+        row.w = weights,
         ...
     )
 }
 
 # Fit models
-mfa_discov <- do_mfa(
-    list(
-        "data" = data_discov$data |> select(-wichtn),
-        "meta" = data_discov$meta |> filter(name != "wichtn"),
-        "na" = data_discov$na |> select(-wichtn)
-    ),
-    n_comp = n_comp,
-    graph = F,
-    row.w = data_discov$wichtn
-)
-mfa_valid <- do_mfa(
-    list(
-        "data" = data_valid$data |> select(-wichtn),
-        "meta" = data_valid$meta |> filter(name != "wichtn"),
-        "na" = data_valid$na |> select(-wichtn)
-    ),
-    n_comp = n_comp,
-    graph = F,
-    row.w = data_valid$wichtn
-)
+mfa_discov <- do_mfa(data_discov, n_comp, weight_var = wichtn, graph = F)
+mfa_valid <- do_mfa(data_valid, n_comp, weight_var = wichtn, graph = F)
 
 # Apply models
 data_discov_mfa <- as_tibble(mfa_discov$ind$coord)

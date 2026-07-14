@@ -59,12 +59,13 @@ class DatasetBundle:
         folder = path.parent
         data_name = path.name
         files = os.listdir(folder)
-        return cls(
+        bundle = cls(
             pd.read_parquet(Path(folder, f"{data_name}.parquet")),
             pd.read_parquet(Path(folder, file_name)) if (file_name := f"{data_name}__meta.parquet") in files else None,
             pd.read_parquet(Path(folder, file_name)) if (file_name := f"{data_name}__na.parquet") in files else None,
         )
         print(f"Loaded dataset from {path}.")
+        return bundle
 
     def copy(self) -> DatasetBundle:
         """Copy."""
