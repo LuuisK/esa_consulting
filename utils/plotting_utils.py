@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -19,6 +19,7 @@ from utils.corr_assoc_utils import create_corr_assoc_matrix
 from utils.metrics_utils import silhouette_samples
 from utils.misc_utils import (
     agg_with_overall,
+    clip_data_quantiles,
     contingency_table,
     partial_fn_with_info,
     std_weighted,
@@ -74,34 +75,69 @@ scale_color_ggplot = p9.scale_color_hue()
 scale_fill_ggplot = p9.scale_fill_hue()
 
 
-def make_plot_2d_data(data: pd.DataFrame, cluster_labels: pd.Series[pd.CategoricalDtype] | None = None):
+def make_plot_2d_data(
+    data: pd.DataFrame,
+    comps: tuple[int, int] | list[tuple[int, int]],
+    labels: pd.Series | None = None,
+    quantiles: tuple[float, float] = (0, 1),
+    method: Literal["clip", "drop"] = "clip",
+) -> p9.ggplot:
     """
-    Creates a plot of a 2d dataset.
+    Creates a plot of a 2D dataset.
 
-    The x and y coordinates are the first and second column of the data. If cluster labels are provided the points are
-    colored by cluster membership.
+    Which columns are plotted as x and y coordinates can be specified by position in `comps`. If cluster labels are
+    provided the points are colored by cluster membership. The `quantiles` and `method` parameters are used to clip
+    extreme quantiles in each facet of the plot.
     """
+
     # Copy data so the original object is not modified
     data = data.copy()
 
+    single_plot = isinstance(comps, tuple)
+    comps = [comps] if single_plot else comps
+
+    # Data-frame of every combination of components with clipped extreme percentiles
+    dims_dtype = pd.CategoricalDtype([f"{data.columns[i]} vs {data.columns[j]}" for i, j in comps])
+    data_2d = pd.concat(
+        [
+            pd.DataFrame(
+                {
+                    "x": data.iloc[:, i],
+                    "y": data.iloc[:, j],
+                    "dims": pd.Series(dims_dtype.categories[k], index=data.index, dtype=dims_dtype),
+                }
+                | ({} if labels is None else {"cluster": labels})
+            )
+            .pipe(clip_data_quantiles, var_name="x", quantiles=quantiles, method=method)
+            .pipe(clip_data_quantiles, var_name="y", quantiles=quantiles, method=method)
+            for k, (i, j) in enumerate(comps)
+        ],
+        ignore_index=True,
+    )
+
     # Color based on clustering if provided
     aes_kwargs = {}
-    geom_point_kwargs = {}
-    if cluster_labels is not None:
-        data["cluster"] = cluster_labels
-        aes_kwargs |= dict(fill="cluster")
+    if labels is not None:
+        aes_kwargs |= {"fill": "cluster"}
 
     # Create plot
+    data_2d = data_2d.rename(columns=lambda x: str(x))
     plot = (
-        p9.ggplot(data)
-        + p9.aes(x=data.columns[0], y=data.columns[1], **aes_kwargs)
-        + p9.geom_point(alpha=0.3, **geom_point_kwargs, color="none")
-        + scale_color_ggplot
+        p9.ggplot(data_2d)
+        + p9.aes(x=data_2d.columns[0], y=data_2d.columns[1], **aes_kwargs)
+        + p9.geom_point(alpha=0.3, color="none")
         + scale_fill_ggplot
         + p9.guides(fill=p9.guide_legend(override_aes={"size": 5, "alpha": 1}))
         + theme_ggplot
     )
-    return plot
+    if single_plot:
+        return plot + p9.labs(x=data.columns[comps[0][0]], y=data.columns[comps[0][1]])
+    else:
+        return (
+            plot
+            + p9.theme(axis_title_x=p9.element_blank(), axis_title_y=p9.element_blank())
+            + p9.facet_wrap("dims", scales="free")
+        )
 
 
 def make_plot_corr_assoc_matrix(data: pd.DataFrame) -> p9.ggplot:
