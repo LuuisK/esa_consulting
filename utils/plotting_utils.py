@@ -321,3 +321,28 @@ def make_plot_contingency_table(
         + theme_ggplot
     )
     return cont_table_plot
+
+
+def make_plot_grid_search(
+    metrics_grid_search: pd.DataFrame, x: str, metrics: str | tuple[str] | None = None
+) -> p9.ggplot:
+    """
+    Creates a plot of grid-search metrics.
+
+    The input data-frame needs the columns "metric, "mean", and "std". If metrics is `None` all metrics are plotted.
+    """
+    if isinstance(metrics, str):
+        metrics = (metrics,)
+    elif metrics is None:
+        metrics = tuple(metrics_grid_search["metric"].unique())
+
+    data_ggplot = metrics_grid_search[lambda x: x["metric"].isin(metrics)]
+    return (
+        p9.ggplot(data_ggplot)
+        + p9.aes(x=x, y="mean")
+        + p9.geom_ribbon(p9.aes(ymin="mean - std", ymax="mean + std"), alpha=0.2)
+        + p9.geom_line()
+        + (None if len(metrics) <= 1 else p9.facet_wrap("metric", scales="free_y"))
+        + p9.labs(x=x, y="values")
+        + theme_ggplot
+    )
