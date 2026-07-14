@@ -9,11 +9,11 @@ import pandas as pd
 import plotnine as p9
 from matplotlib import font_manager
 from sklearn.decomposition import PCA
-from sklearn.metrics import silhouette_samples
 from sklearn.mixture._base import BaseMixture
 from sklearn.model_selection import GridSearchCV
 
 from utils.corr_assoc_utils import create_corr_assoc_matrix
+from utils.metrics_utils import silhouette_samples
 from utils.misc_utils import contingency_table
 
 pd.options.mode.copy_on_write = True
@@ -250,10 +250,12 @@ def make_plot_mixture_weights(model: BaseMixture) -> p9.ggplot:
     return plot_weights
 
 
-def make_plot_silhouette(data: pd.DataFrame, cluster_labels: pd.Series[pd.CategoricalDtype]) -> p9.ggplot:
+def make_plot_silhouette(
+    data: pd.DataFrame, cluster_labels: pd.Series[pd.CategoricalDtype], sample_weight: np.typing.ArrayLike | None = None
+) -> p9.ggplot:
     """Creates a silhouette plot."""
     # Compute silhouettes
-    silhouettes = silhouette_samples(data, cluster_labels, metric="euclidean")
+    silhouettes = silhouette_samples(data, cluster_labels, sample_weight=sample_weight, metric="euclidean")
 
     # Create ggplot data
     data_ggplot = pd.DataFrame({"cluster": cluster_labels, "silhouette": silhouettes})
