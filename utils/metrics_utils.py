@@ -100,6 +100,7 @@ def _silhouette_reduce(D_chunk, start, labels, label_freqs, sample_weight=None):
 
 
 # Copied from sklearn and modified to enable sample weights
+# ruff: disable[B905]
 def silhouette_samples(X, labels, *, sample_weight=None, metric="euclidean", **kwds):
     """Compute the Silhouette Coefficient for each sample."""
     X, labels = check_X_y(X, labels, accept_sparse=["csr"])
@@ -146,6 +147,9 @@ def silhouette_samples(X, labels, *, sample_weight=None, metric="euclidean", **k
         sil_samples /= np.maximum(intra_clust_dists, inter_clust_dists)
     # nan values are for clusters of size 1, and should be 0
     return np.nan_to_num(sil_samples)
+
+
+# ruff: enable[B905]
 
 
 # Copied from sklearn and modified to enable sample weights

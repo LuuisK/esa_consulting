@@ -69,6 +69,7 @@ def contingency_table(index: pd.Series, columns: pd.Series, dropna: bool = False
 
 
 # Largely copied from numpy.average
+# ruff: disable[SIM108]
 def var_weighted(a, axis=None, weights=None, returned=False, *, keepdims=np._NoValue):
     a = np.asanyarray(a)
 
@@ -107,6 +108,9 @@ def var_weighted(a, axis=None, weights=None, returned=False, *, keepdims=np._NoV
         return var, scl
     else:
         return var
+
+
+# ruff: enable[SIM108]
 
 
 def std_weighted(a, axis=None, weights=None, returned=False, *, keepdims=np._NoValue):
