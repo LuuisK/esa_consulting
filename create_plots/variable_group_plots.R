@@ -163,6 +163,70 @@ save_plot(
   height = 4
 )
 
+
+
+# ------------------------------------------------------------------------------
+# 4. Weighted gender distribution in 2018 and 2021
+# ------------------------------------------------------------------------------
+
+gender_data <- data_full$data |>
+  filter(
+    zeit %in% c(2018, 2021),
+    !is.na(ges),
+    !is.na(wichtn)
+  ) |>
+  mutate(
+    year = factor(zeit),
+    gender = case_when(
+      as.character(ges) == "1" ~ "Male",
+      as.character(ges) == "2" ~ "Female",
+      TRUE ~ as.character(ges)
+    )
+  ) |>
+  group_by(year, gender) |>
+  summarise(
+    n_unweighted = n(),
+    n_weighted = sum(wichtn),
+    .groups = "drop"
+  )
+
+gender_plot <- gender_data |>
+  ggplot(
+    aes(
+      x = gender,
+      y = n_weighted,
+      fill = year
+    )
+  ) +
+  geom_col(
+    position = position_dodge(width = 0.9)
+  ) +
+  geom_text(
+    aes(label = round(n_weighted, 1)),
+    position = position_dodge(width = 0.9),
+    vjust = -0.3,
+    size = 3.5,
+    family = font_name
+  ) +
+  scale_fill_manual(values = colors_year) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.12))
+  ) +
+  labs(
+    title = "Weighted Gender Distribution in 2018 and 2021",
+    x = "Gender",
+    y = "Weighted Count",
+    fill = "Year"
+  ) +
+  theme_ggplot
+
+save_plot(
+  gender_plot,
+  "weighted_gender_distribution_2018_2021.png",
+  width = 6,
+  height = 4
+)
+
 # ------------------------------------------------------------------------------
 # 5. Interview types in 2018 and 2021
 # ------------------------------------------------------------------------------
@@ -201,6 +265,56 @@ interview_type_plot <- data_full$data |>
 save_plot(
   interview_type_plot,
   "interview_types_2018_2021.png",
+  width = 6,
+  height = 4
+)
+
+# ------------------------------------------------------------------------------
+# 5. Weighted interview types in 2018 and 2021
+# ------------------------------------------------------------------------------
+
+interview_type_plot <- data_full$data |>
+  filter(
+    zeit %in% c(2018, 2021),
+    !is.na(int_art),
+    !is.na(wichtn)
+  ) |>
+  mutate(
+    year = factor(zeit),
+    interview_type = case_when(
+      as.character(int_art) == "1" ~ "CATI",
+      as.character(int_art) == "2" ~ "PAPI",
+      as.character(int_art) == "3" ~ "CAWI",
+      TRUE ~ as.character(int_art)
+    )
+  ) |>
+  group_by(year, interview_type) |>
+  summarise(
+    weighted_n = sum(wichtn),
+    .groups = "drop"
+  ) |>
+  ggplot(aes(x = interview_type, y = weighted_n, fill = year)) +
+  geom_col(position = position_dodge(width = 0.9)) +
+  geom_text(
+    aes(label = round(weighted_n, 1)),
+    position = position_dodge(width = 0.9),
+    vjust = -0.3,
+    size = 3.5,
+    family = font_name
+  ) +
+  scale_fill_manual(values = colors_year) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(
+    title = "Interview Types in 2018 and 2021",
+    x = "Interview type",
+    y = "Weighted count",
+    fill = "Year"
+  ) +
+  theme_ggplot
+
+save_plot(
+  interview_type_plot,
+  "weighted_interview_types_2018_2021.png",
   width = 6,
   height = 4
 )
