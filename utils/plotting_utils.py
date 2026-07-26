@@ -20,7 +20,7 @@ from utils.metrics_utils import silhouette_samples
 from utils.misc_utils import (
     agg_with_overall,
     clip_data_quantiles,
-    contingency_table,
+    crosstab,
     partial_fn_with_info,
     std_weighted,
     turn_cats_to_continuous,
@@ -333,6 +333,7 @@ def make_plot_contingency_table(
     values2: pd.Series[pd.CategoricalDtype],
     name1: str = "var1",
     name2: str = "var2",
+    sample_weight: pd.Series | None = None,
 ) -> p9.ggplot:
     """
     Creates a plot of the contingency table between two categorical variables.
@@ -341,9 +342,9 @@ def make_plot_contingency_table(
     categorical variable values1, in percentages for each value of values1. The indices of values1 and values2 should
     match.
     """
-    cont_table = contingency_table(values1, values2, dropna=False, normalize="index")
+    cont_table = crosstab(values1, values2, sample_weight=sample_weight, dropna=False, normalize="index")
     data_ggplot = (
-        pd.DataFrame({"entailment": cont_table.stack(future_stack=True)})
+        pd.DataFrame({"entailment": cont_table.stack(future_stack=False)})
         .reset_index(names=[name1, name2])
         .assign(
             **{

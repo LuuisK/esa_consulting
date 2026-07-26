@@ -49,26 +49,35 @@ def make_nan_a_value(x: pd.Series) -> pd.Series:
     return x.cat.add_categories(["NaN"]).fillna("NaN") if x.dtype == "category" else x.astype("str").fillna("NaN")
 
 
-def contingency_table(index: pd.Series, columns: pd.Series, dropna: bool = False, **kwargs) -> pd.DataFrame:
-    """
-    Contingency table.
+def crosstab(
+    index: pd.Series,
+    columns: pd.Series,
+    sample_weight: pd.Series | None = None,
+    dropna: bool = False,
+    normalize: Literal[False, "all", "index", "columns"] = False,
+) -> pd.DataFrame:
+    names = index.name, columns.name
+    index.name, columns.name = "row_0", "col_0"
+    data = pd.concat([index, columns], axis=1).assign(
+        **{"_weight": lambda x: 1.0 if sample_weight is None else sample_weight.reindex(x.index)}
+    )
+    table = (
+        data.groupby(data.columns[:2].to_list(), dropna=dropna, observed=False, sort=False)["_weight"]
+        .sum()
+        .unstack(data.columns[1], fill_value=0)
+        .rename_axis(index=names[0], columns=names[1])
+    )
 
-    pd.crosstab that does not ignore NaN.
-    """
-    assert pd.options.future.infer_string
-
-    index = make_nan_a_value(index)
-    columns = make_nan_a_value(columns)
-
-    crosstab = pd.crosstab(index, columns, dropna=False, **kwargs)
-
-    if dropna:
-        index_nan = crosstab.index[crosstab.index.str.fullmatch("NaN")]
-        columns_nan = crosstab.columns[crosstab.columns.str.fullmatch("NaN")]
-
-        crosstab = crosstab.drop(index=index_nan, columns=columns_nan)
-
-    return crosstab
+    if normalize is False:
+        return table
+    match normalize:
+        case "index":
+            denominator = table.sum(axis="columns").replace(0, np.nan)
+        case "columns":
+            denominator = table.sum(axis="index").replace(0, np.nan)
+        case "all":
+            denominator = np.nan if (x := table.sum().sum()) == 0 else x
+    return table.div(denominator, axis="index" if normalize == "index" else "columns")
 
 
 # Largely copied from numpy.average
@@ -266,19 +275,23 @@ def value_counts(
     ascending: bool = False,
     normalize: bool = False,
     dropna: bool = True,
-    sample_weight: pd.Series | np.typing.ArrayLike | None = None,
+    sample_weight: pd.Series | None = None,
 ) -> pd.Series:
-    if sample_weight is None:
-        frequencies = values.value_counts(normalize=normalize, sort=sort, ascending=ascending, dropna=dropna)
-    else:
-        frequencies = pd.Series(sample_weight).groupby(values, dropna=dropna, observed=False).sum()
-        frequencies.name = "count"
-        if normalize:
-            frequencies = frequencies / frequencies.sum()
-            frequencies.name = "proportion"
-        if sort:
-            frequencies = frequencies.sort_values(ascending=ascending)
-    return frequencies
+    """Return weighted counts or proportions of unique values."""
+    weights = pd.Series(1.0, index=values.index) if sample_weight is None else sample_weight.reindex(values.index)
+    result = (
+        pd.DataFrame({"_value": values, "_weight": weights})
+        .groupby("_value", dropna=dropna, observed=False, sort=False)["_weight"]
+        .sum()
+    )
+    result.index.name = values.name
+    result.name = "proportion" if normalize else "count"
+    if normalize:
+        denominator = np.nan if (x := result.sum()) == 0 else x
+        result = result / denominator
+    if sort:
+        result = result.sort_values(ascending=ascending, kind="stable")
+    return result
 
 
 # See answers to https://stackoverflow.com/questions/38783027/jupyter-notebook-display-two-pandas-tables-side-by-side
