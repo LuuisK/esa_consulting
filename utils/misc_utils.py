@@ -15,6 +15,7 @@ from numpy._globals import _NoValueType
 from numpy._typing import _ArrayLikeComplex_co, _ArrayLikeFloat_co, _ArrayLikeObject_co, _ShapeLike
 from numpy.lib._function_base_impl import _weights_are_valid  # type: ignore
 from numpy.lib.array_utils import normalize_axis_tuple
+from numpy.typing import ArrayLike
 
 pd.options.mode.copy_on_write = True
 pd.options.future.infer_string = True
@@ -50,22 +51,23 @@ def make_nan_a_value(x: pd.Series) -> pd.Series:
 
 
 def crosstab(
-    index: pd.Series,
-    columns: pd.Series,
-    sample_weight: pd.Series | None = None,
+    index: ArrayLike,
+    columns: ArrayLike,
+    sample_weight: ArrayLike | None = None,
     dropna: bool = False,
     normalize: Literal[False, "all", "index", "columns"] = False,
 ) -> pd.DataFrame:
-    names = index.name, columns.name
-    index.name, columns.name = "row_0", "col_0"
-    data = pd.concat([index, columns], axis=1).assign(
-        **{"_weight": lambda x: 1.0 if sample_weight is None else sample_weight.reindex(x.index)}
-    )
+    index = pd.Series(index)
+    columns = pd.Series(columns)
+    row_name = "row_0" if index.name is None else index.name
+    column_name = "col_0" if columns.name is None else columns.name
     table = (
-        data.groupby(data.columns[:2].to_list(), dropna=dropna, observed=False, sort=False)["_weight"]
+        pd.concat([index, columns], axis="columns", join="inner", keys=["row_0", "col_0"])
+        .assign(**{"_weight": 1 if sample_weight is None else sample_weight})
+        .groupby(["row_0", "col_0"], dropna=dropna, observed=False, sort=False)["_weight"]
         .sum()
-        .unstack(data.columns[1], fill_value=0)
-        .rename_axis(index=names[0], columns=names[1])
+        .unstack("col_0", fill_value=0)
+        .rename_axis(index=[row_name], columns=[column_name])
     )
 
     if normalize is False:
@@ -238,7 +240,9 @@ def std_weighted(a, axis=None, weights=None, returned=False, *, keepdims=np._NoV
 
 
 # Copied from sklearn and modified to enable sample weights
-def contingency_matrix(labels_true, labels_pred, *, sample_weight=None, eps=None, sparse=False, dtype=None):
+def contingency_matrix(
+    labels_true, labels_pred, *, sample_weight: ArrayLike | None = None, eps=None, sparse=False, dtype=None
+):
     """Build a contingency matrix describing the relationship between labels."""
     if dtype is None:
         dtype = np.int64 if sample_weight is None else np.float64
@@ -252,7 +256,7 @@ def contingency_matrix(labels_true, labels_pred, *, sample_weight=None, eps=None
     # Using coo_matrix to accelerate simple histogram calculation,
     # i.e. bins are consecutive integers
     # Currently, coo_matrix is faster than histogram2d for simple cases
-    sample_weight = np.ones(class_idx.shape[0]) if sample_weight is None else sample_weight
+    sample_weight = np.ones(class_idx.shape[0], dtype=np.int64) if sample_weight is None else sample_weight
     contingency = sp.coo_matrix(
         (sample_weight, (class_idx, cluster_idx)),
         shape=(n_classes, n_clusters),
@@ -270,17 +274,18 @@ def contingency_matrix(labels_true, labels_pred, *, sample_weight=None, eps=None
 
 
 def value_counts(
-    values: pd.Series,
+    values: ArrayLike,
+    sample_weight: ArrayLike | None = None,
     sort: bool = True,
     ascending: bool = False,
     normalize: bool = False,
     dropna: bool = True,
-    sample_weight: pd.Series | None = None,
 ) -> pd.Series:
     """Return weighted counts or proportions of unique values."""
-    weights = pd.Series(1.0, index=values.index) if sample_weight is None else sample_weight.reindex(values.index)
+    values = pd.Series(values)
     result = (
-        pd.DataFrame({"_value": values, "_weight": weights})
+        values.to_frame(name="_value")
+        .assign(**{"_weight": 1 if sample_weight is None else sample_weight})
         .groupby("_value", dropna=dropna, observed=False, sort=False)["_weight"]
         .sum()
     )
