@@ -26,7 +26,7 @@ from sklearn.mixture._gaussian_mixture import (
 )
 from sklearn.utils import check_random_state
 from sklearn.utils._param_validation import Interval, StrOptions
-from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import _check_sample_weight, check_is_fitted
 
 
 # Copied from sklearn and modified the following methods to enable sample weights:
@@ -86,7 +86,7 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         """
         pass
 
-    def _initialize_parameters(self, X, random_state, sample_weight=None):
+    def _initialize_parameters(self, X, random_state, sample_weight):
         """Initialize the model parameters.
 
         Parameters
@@ -117,7 +117,8 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
             resp /= resp.sum(axis=1)[:, np.newaxis]
         elif self.init_params == "random_from_data":
             resp = np.zeros((n_samples, self.n_components))
-            indices = random_state.choice(n_samples, p=sample_weight, size=self.n_components, replace=False)
+            probabilities = None if sample_weight is None else sample_weight / sample_weight.sum(dtype=np.float64)
+            indices = random_state.choice(n_samples, p=probabilities, size=self.n_components, replace=False)
             resp[indices, np.arange(self.n_components)] = 1
         elif self.init_params == "k-means++":
             resp = np.zeros((n_samples, self.n_components))
@@ -129,10 +130,10 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
             )
             resp[indices, np.arange(self.n_components)] = 1
 
-        self._initialize(X, resp)
+        self._initialize(X, resp, sample_weight)
 
     @abstractmethod
-    def _initialize(self, X, resp):
+    def _initialize(self, X, resp, sample_weight):
         """Initialize the model parameters of the derived class.
 
         Parameters
@@ -140,6 +141,11 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         X : array-like of shape  (n_samples, n_features)
 
         resp : array-like of shape (n_samples, n_components)
+
+        sample_weight : array-like of shape (n_samples,), default=None
+            The weights for each observation in `X`. If `None`, all observations
+            are assigned equal weight. `sample_weight` is not used during
+            initialization if `init` is a callable or a user provided array.
         """
         pass
 
@@ -219,6 +225,8 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
                 f"n_samples = {X.shape[0]}"
             )
         self._check_parameters(X)
+        if sample_weight is not None:
+            sample_weight = _check_sample_weight(sample_weight, X, dtype=X.dtype, only_non_negative=True)
 
         # if we enable warm_start, we will have a unique initialisation
         do_init = not (self.warm_start and hasattr(self, "converged_"))
@@ -234,7 +242,7 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
             self._print_verbose_msg_init_beg(init)
 
             if do_init:
-                self._initialize_parameters(X, random_state, sample_weight=sample_weight)
+                self._initialize_parameters(X, random_state, sample_weight)
 
             lower_bound = -np.inf if do_init else self.lower_bound_
 
@@ -246,8 +254,8 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
                 for n_iter in range(1, self.max_iter + 1):
                     prev_lower_bound = lower_bound
 
-                    log_prob_norm, log_resp = self._e_step(X, sample_weight=sample_weight)
-                    self._m_step(X, log_resp, sample_weight=sample_weight)
+                    log_prob_norm, log_resp = self._e_step(X, sample_weight)
+                    self._m_step(X, log_resp, sample_weight)
                     lower_bound = self._compute_lower_bound(log_resp, log_prob_norm)
 
                     change = lower_bound - prev_lower_bound
@@ -285,11 +293,11 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         # Always do a final e-step to guarantee that the labels returned by
         # fit_predict(X) are always consistent with fit(X).predict(X)
         # for any value of max_iter and tol (and any random_state).
-        _, log_resp = self._e_step(X, sample_weight=sample_weight)
+        _, log_resp = self._e_step(X, sample_weight)
 
         return log_resp.argmax(axis=1)
 
-    def _e_step(self, X, sample_weight=None):
+    def _e_step(self, X, sample_weight):
         """E step.
 
         Parameters
@@ -314,7 +322,7 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         return np.average(log_prob_norm, weights=sample_weight), log_resp
 
     @abstractmethod
-    def _m_step(self, X, log_resp, sample_weight=None):
+    def _m_step(self, X, log_resp, sample_weight):
         """M step.
 
         Parameters
@@ -324,6 +332,11 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         log_resp : array-like of shape (n_samples, n_components)
             Logarithm of the posterior probabilities (or responsibilities) of
             the point of each sample in X.
+
+        sample_weight : array-like of shape (n_samples,), default=None
+            The weights for each observation in `X`. If `None`, all observations
+            are assigned equal weight. `sample_weight` is not used during
+            initialization if `init` is a callable or a user provided array.
         """
         pass
 
@@ -376,7 +389,10 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         log_likelihood : float
             Log-likelihood of `X` under the Gaussian mixture model.
         """
-        return np.average(self.score_samples(X), weights=sample_weight)
+        scores = self.score_samples(X)
+        if sample_weight is not None:
+            sample_weight = _check_sample_weight(sample_weight, scores, dtype=np.float64, only_non_negative=True)
+        return np.average(scores, weights=sample_weight)
 
     def predict(self, X):
         """Predict the labels for the data samples in X using trained model.
@@ -598,7 +614,7 @@ def _estimate_gaussian_covariances_tied(resp, X, nk, means, reg_covar):
 
 
 # Copied from sklearn and modified to enable sample weights
-def _estimate_gaussian_parameters(X, resp, reg_covar, covariance_type, sample_weight=None):
+def _estimate_gaussian_parameters(X, resp, reg_covar, covariance_type, sample_weight):
     """Estimate the Gaussian distribution parameters.
 
     Parameters
@@ -614,6 +630,11 @@ def _estimate_gaussian_parameters(X, resp, reg_covar, covariance_type, sample_we
 
     covariance_type : {'full', 'tied', 'diag', 'spherical'}
         The type of precision matrices.
+
+    sample_weight : array-like of shape (n_samples,), default=None
+        The weights for each observation in `X`. If `None`, all observations
+        are assigned equal weight. `sample_weight` is not used during
+        initialization if `init` is a callable or a user provided array.
 
     Returns
     -------
@@ -893,16 +914,16 @@ class GaussianMixture(BaseMixture):
                 n_features,
             )
 
-    def _initialize_parameters(self, X, random_state, sample_weight=None):
+    def _initialize_parameters(self, X, random_state, sample_weight):
         # If all the initial parameters are all provided, then there is no need to run
         # the initialization.
         compute_resp = self.weights_init is None or self.means_init is None or self.precisions_init is None
         if compute_resp:
-            super()._initialize_parameters(X, random_state, sample_weight=sample_weight)
+            super()._initialize_parameters(X, random_state, sample_weight)
         else:
-            self._initialize(X, None, sample_weight=sample_weight)
+            self._initialize(X, None, sample_weight)
 
-    def _initialize(self, X, resp, sample_weight=None):
+    def _initialize(self, X, resp, sample_weight):
         """Initialization of the Gaussian mixture parameters.
 
         Parameters
@@ -920,7 +941,7 @@ class GaussianMixture(BaseMixture):
         weights, means, covariances = None, None, None
         if resp is not None:
             weights, means, covariances = _estimate_gaussian_parameters(
-                X, resp, self.reg_covar, self.covariance_type, sample_weight=sample_weight
+                X, resp, self.reg_covar, self.covariance_type, sample_weight
             )
             if self.weights_init is None:
                 n_eff = n_samples if sample_weight is None else sample_weight.sum()
@@ -937,7 +958,7 @@ class GaussianMixture(BaseMixture):
                 self.precisions_init, self.covariance_type
             )
 
-    def _m_step(self, X, log_resp, sample_weight=None):
+    def _m_step(self, X, log_resp, sample_weight):
         """M step.
 
         Parameters
@@ -955,7 +976,7 @@ class GaussianMixture(BaseMixture):
         """
         resp = np.exp(log_resp)
         self.weights_, self.means_, self.covariances_ = _estimate_gaussian_parameters(
-            X, resp, self.reg_covar, self.covariance_type, sample_weight=sample_weight
+            X, resp, self.reg_covar, self.covariance_type, sample_weight
         )
         self.weights_ /= self.weights_.sum()
         self.precisions_cholesky_ = _compute_precision_cholesky(self.covariances_, self.covariance_type)
@@ -1033,10 +1054,14 @@ class GaussianMixture(BaseMixture):
         bic : float
             The lower the better.
         """
+        if sample_weight is not None:
+            sample_weight = _check_sample_weight(sample_weight, X, dtype=np.float64, only_non_negative=True)
         n_eff = X.shape[0] if sample_weight is None else sample_weight.sum()
         return -2 * self.score(X, sample_weight=sample_weight) * n_eff + self._n_parameters() * np.log(n_eff)
 
     def icl(self, X, sample_weight=None):
+        if sample_weight is not None:
+            sample_weight = _check_sample_weight(sample_weight, X, dtype=np.float64, only_non_negative=True)
         bic = self.bic(X, sample_weight=sample_weight)
 
         _, log_resp = self._estimate_log_prob_resp(X)
@@ -1069,6 +1094,8 @@ class GaussianMixture(BaseMixture):
         aic : float
             The lower the better.
         """
+        if sample_weight is not None:
+            sample_weight = _check_sample_weight(sample_weight, X, dtype=np.float64, only_non_negative=True)
         n_eff = X.shape[0] if sample_weight is None else sample_weight.sum()
         return -2 * self.score(X, sample_weight=sample_weight) * n_eff + 2 * self._n_parameters()
 

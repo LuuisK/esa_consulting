@@ -7,11 +7,12 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 from gapstat import gapstat_score
+from numpy.typing import ArrayLike
 from scipy.stats import chi2_contingency
 from sklearn.base import BaseEstimator
-from sklearn.metrics import adjusted_rand_score
 
 from utils.metrics_utils import (
+    adjusted_rand_score,
     association,
     calinski_harabasz_score,
     davies_bouldin_score,
@@ -51,7 +52,7 @@ def predict_clustering_proba(model: BaseEstimator, data: pd.DataFrame) -> pd.Dat
 
 
 def cluster_summaries(
-    data: DatasetBundle, labels: pd.Series[pd.CategoricalDtype], sample_weight: np.typing.ArrayLike | None = None
+    data: DatasetBundle, labels: pd.Series[pd.CategoricalDtype], sample_weight: ArrayLike | None = None
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Cluster summaries.
@@ -61,6 +62,7 @@ def cluster_summaries(
     """
     # Don't modify the input
     data = data.copy()
+    sample_weight = None if sample_weight is None else pd.Series(sample_weight, index=data.data.index)
 
     if data.meta is None:
         raise ValueError("'data.meta' may not be None.")
@@ -72,13 +74,12 @@ def cluster_summaries(
     data_nominal = data_with_converted_types.select_dtypes(include="category")
 
     # Make summaries for continuous, binary, and ordinal variables
-    agg_weights = None if sample_weight is None else pd.Series(sample_weight, index=data_with_converted_types.index)
     cluster_summaries_not_nominal = agg_with_overall(
         data_not_nominal.assign(**{"cluster": labels}),
         "cluster",
         [
-            ("mean", partial_fn_with_info(np.average, ignore_nan=True, weights=agg_weights)),
-            ("std", partial_fn_with_info(std_weighted, ignore_nan=True, weights=agg_weights)),
+            ("mean", partial_fn_with_info(np.average, ignore_nan=True, weights=sample_weight)),
+            ("std", partial_fn_with_info(std_weighted, ignore_nan=True, weights=sample_weight)),
         ],
         overall_label="all",
     )
@@ -126,12 +127,16 @@ def cluster_summaries(
 def print_cluster_statistics(
     cluster_labels_list: Sequence[pd.Series[pd.CategoricalDtype]],
     datas: Sequence[pd.DataFrame],
-    sample_weights: Sequence[np.typing.ArrayLike | None] | None = None,
+    sample_weights: Sequence[ArrayLike | None] | None = None,
     labels: Sequence[str] | None = None,
 ) -> None:
     """Prints some statistics of one or more clusterings."""
     if sample_weights is None:
         sample_weights = [None for i in range(len(datas))]
+    sample_weights = [
+        None if sample_weight is None else pd.Series(sample_weight, index=data.index)
+        for sample_weight, data in zip(sample_weights, datas, strict=True)
+    ]
 
     if labels is None:
         labels = [f"clustering {i}" for i in range(len(datas))]
@@ -189,9 +194,11 @@ def print_cluster_statistics(
 def print_cluster_stability(
     cluster_labels1: pd.Series[pd.CategoricalDtype],
     cluster_labels2: pd.Series[pd.CategoricalDtype],
-    sample_weight: np.typing.ArrayLike | None = None,
+    sample_weight: ArrayLike | None = None,
 ) -> None:
     """Prints a comparison of two clusterings of the same dataset."""
+    sample_weight = None if sample_weight is None else pd.Series(sample_weight, index=cluster_labels1.index)
+
     ari = adjusted_rand_score(cluster_labels1, cluster_labels2, sample_weight=sample_weight)
     nmi = normalized_mutual_info_score(cluster_labels1, cluster_labels2, sample_weight=sample_weight)
     vi = variation_of_information(cluster_labels1, cluster_labels2, sample_weight=sample_weight)

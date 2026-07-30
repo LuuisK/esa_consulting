@@ -50,7 +50,6 @@ select = [
 ]
 ignore = [
     "E501", # let the formatter handle line length where possible
-    "F401", # allow unused imports
     "B007", # allow named unused variables in expressions that are looped over
     "B023", # allow function definitions with loop variables
     "PIE804", # allow constructing and immediately unpacking dictionary
@@ -61,7 +60,9 @@ ignore = [
 ]
 
 fixable = ["ALL"]
-unfixable = []
+unfixable = [
+    "F401", # don't auto-fix unused imports
+]
 
 [tool.uv.sources]
 gapstat = { git = "https://github.com/jmmaloney3/gapstat.git" }
