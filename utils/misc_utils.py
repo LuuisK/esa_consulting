@@ -15,6 +15,7 @@ from numpy._globals import _NoValueType
 from numpy._typing import _ArrayLikeComplex_co, _ArrayLikeFloat_co, _ArrayLikeObject_co, _ShapeLike
 from numpy.lib._function_base_impl import _weights_are_valid  # type: ignore
 from numpy.lib.array_utils import normalize_axis_tuple
+from numpy.typing import ArrayLike
 
 pd.options.mode.copy_on_write = True
 pd.options.future.infer_string = True
@@ -49,26 +50,36 @@ def make_nan_a_value(x: pd.Series) -> pd.Series:
     return x.cat.add_categories(["NaN"]).fillna("NaN") if x.dtype == "category" else x.astype("str").fillna("NaN")
 
 
-def contingency_table(index: pd.Series, columns: pd.Series, dropna: bool = False, **kwargs) -> pd.DataFrame:
-    """
-    Contingency table.
+def crosstab(
+    index: ArrayLike,
+    columns: ArrayLike,
+    sample_weight: ArrayLike | None = None,
+    dropna: bool = False,
+    normalize: Literal[False, "all", "index", "columns"] = False,
+) -> pd.DataFrame:
+    index = pd.Series(index)
+    columns = pd.Series(columns)
+    row_name = "row_0" if index.name is None else index.name
+    column_name = "col_0" if columns.name is None else columns.name
+    table = (
+        pd.concat([index, columns], axis="columns", join="inner", keys=["row_0", "col_0"])
+        .assign(**{"_weight": 1 if sample_weight is None else sample_weight})
+        .groupby(["row_0", "col_0"], dropna=dropna, observed=False, sort=False)["_weight"]
+        .sum()
+        .unstack("col_0", fill_value=0)
+        .rename_axis(index=[row_name], columns=[column_name])
+    )
 
-    pd.crosstab that does not ignore NaN.
-    """
-    assert pd.options.future.infer_string
-
-    index = make_nan_a_value(index)
-    columns = make_nan_a_value(columns)
-
-    crosstab = pd.crosstab(index, columns, dropna=False, **kwargs)
-
-    if dropna:
-        index_nan = crosstab.index[crosstab.index.str.fullmatch("NaN")]
-        columns_nan = crosstab.columns[crosstab.columns.str.fullmatch("NaN")]
-
-        crosstab = crosstab.drop(index=index_nan, columns=columns_nan)
-
-    return crosstab
+    if normalize is False:
+        return table
+    match normalize:
+        case "index":
+            denominator = table.sum(axis="columns").replace(0, np.nan)
+        case "columns":
+            denominator = table.sum(axis="index").replace(0, np.nan)
+        case "all":
+            denominator = np.nan if (x := table.sum().sum()) == 0 else x
+    return table.div(denominator, axis="index" if normalize == "index" else "columns")
 
 
 # Largely copied from numpy.average
@@ -229,7 +240,9 @@ def std_weighted(a, axis=None, weights=None, returned=False, *, keepdims=np._NoV
 
 
 # Copied from sklearn and modified to enable sample weights
-def contingency_matrix(labels_true, labels_pred, *, sample_weight=None, eps=None, sparse=False, dtype=None):
+def contingency_matrix(
+    labels_true, labels_pred, *, sample_weight: ArrayLike | None = None, eps=None, sparse=False, dtype=None
+):
     """Build a contingency matrix describing the relationship between labels."""
     if dtype is None:
         dtype = np.int64 if sample_weight is None else np.float64
@@ -243,7 +256,7 @@ def contingency_matrix(labels_true, labels_pred, *, sample_weight=None, eps=None
     # Using coo_matrix to accelerate simple histogram calculation,
     # i.e. bins are consecutive integers
     # Currently, coo_matrix is faster than histogram2d for simple cases
-    sample_weight = np.ones(class_idx.shape[0]) if sample_weight is None else sample_weight
+    sample_weight = np.ones(class_idx.shape[0], dtype=np.int64) if sample_weight is None else sample_weight
     contingency = sp.coo_matrix(
         (sample_weight, (class_idx, cluster_idx)),
         shape=(n_classes, n_clusters),
@@ -261,24 +274,29 @@ def contingency_matrix(labels_true, labels_pred, *, sample_weight=None, eps=None
 
 
 def value_counts(
-    values: pd.Series,
+    values: ArrayLike,
+    sample_weight: ArrayLike | None = None,
     sort: bool = True,
     ascending: bool = False,
     normalize: bool = False,
     dropna: bool = True,
-    sample_weight: pd.Series | np.typing.ArrayLike | None = None,
 ) -> pd.Series:
-    if sample_weight is None:
-        frequencies = values.value_counts(normalize=normalize, sort=sort, ascending=ascending, dropna=dropna)
-    else:
-        frequencies = pd.Series(sample_weight).groupby(values, dropna=dropna, observed=False).sum()
-        frequencies.name = "count"
-        if normalize:
-            frequencies = frequencies / frequencies.sum()
-            frequencies.name = "proportion"
-        if sort:
-            frequencies = frequencies.sort_values(ascending=ascending)
-    return frequencies
+    """Return weighted counts or proportions of unique values."""
+    values = pd.Series(values)
+    result = (
+        values.to_frame(name="_value")
+        .assign(**{"_weight": 1 if sample_weight is None else sample_weight})
+        .groupby("_value", dropna=dropna, observed=False, sort=False)["_weight"]
+        .sum()
+    )
+    result.index.name = values.name
+    result.name = "proportion" if normalize else "count"
+    if normalize:
+        denominator = np.nan if (x := result.sum()) == 0 else x
+        result = result / denominator
+    if sort:
+        result = result.sort_values(ascending=ascending, kind="stable")
+    return result
 
 
 # See answers to https://stackoverflow.com/questions/38783027/jupyter-notebook-display-two-pandas-tables-side-by-side

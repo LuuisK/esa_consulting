@@ -10,17 +10,17 @@ import numpy as np
 import pandas as pd
 import plotnine as p9
 from matplotlib import font_manager
+from numpy.typing import ArrayLike
 from sklearn.decomposition import PCA
 from sklearn.mixture._base import BaseMixture
 from sklearn.model_selection import GridSearchCV
-from sklearn.utils.validation import _check_sample_weight
 
 from utils.corr_assoc_utils import create_corr_assoc_matrix
 from utils.metrics_utils import silhouette_samples
 from utils.misc_utils import (
     agg_with_overall,
     clip_data_quantiles,
-    contingency_table,
+    crosstab,
     partial_fn_with_info,
     std_weighted,
     turn_cats_to_continuous,
@@ -293,9 +293,11 @@ def make_plot_mixture_weights(model: BaseMixture) -> p9.ggplot:
 
 
 def make_plot_silhouette(
-    data: pd.DataFrame, cluster_labels: pd.Series[pd.CategoricalDtype], sample_weight: np.typing.ArrayLike | None = None
+    data: pd.DataFrame, cluster_labels: pd.Series[pd.CategoricalDtype], sample_weight: ArrayLike | None = None
 ) -> p9.ggplot:
     """Creates a silhouette plot."""
+    sample_weight = None if sample_weight is None else pd.Series(sample_weight, index=data.index)
+
     # Compute silhouettes
     silhouettes = silhouette_samples(data, cluster_labels, sample_weight=sample_weight, metric="euclidean")
 
@@ -333,6 +335,7 @@ def make_plot_contingency_table(
     values2: pd.Series[pd.CategoricalDtype],
     name1: str = "var1",
     name2: str = "var2",
+    sample_weight: ArrayLike | None = None,
 ) -> p9.ggplot:
     """
     Creates a plot of the contingency table between two categorical variables.
@@ -341,9 +344,9 @@ def make_plot_contingency_table(
     categorical variable values1, in percentages for each value of values1. The indices of values1 and values2 should
     match.
     """
-    cont_table = contingency_table(values1, values2, dropna=False, normalize="index")
+    cont_table = crosstab(values1, values2, sample_weight=sample_weight, dropna=False, normalize="index")
     data_ggplot = (
-        pd.DataFrame({"entailment": cont_table.stack(future_stack=True)})
+        pd.DataFrame({"entailment": cont_table.stack(future_stack=False)})
         .reset_index(names=[name1, name2])
         .assign(
             **{
@@ -391,11 +394,10 @@ def make_plot_grid_search(
 
 
 def make_plot_continuous_var_dist_by_cluster(
-    data: pd.DataFrame,
-    labels: pd.Series[pd.CategoricalDtype],
-    var: str,
+    series: ArrayLike,
+    labels: ArrayLike,
     quantiles: Iterable[float] | None = None,
-    sample_weight: pd.Series | np.typing.ArrayLike | None = None,
+    sample_weight: ArrayLike | None = None,
     sort: bool = False,
     ascending: bool = False,
     cluster_size_decimals: int = 0,
@@ -407,45 +409,38 @@ def make_plot_continuous_var_dist_by_cluster(
     If a categorical variable is given, its (ordered) category codes are treated as a continuous variable. Above each
     distribution, the (effective) cluster size is shown. If sort the clusters in the plot are sorted by mean.
     """
-    # Process quantiles
     quantiles = [0.02, 0.1, 0.33, 0.5, 0.67, 0.9, 0.98] if quantiles is None else list(quantiles)
     if 0.5 not in quantiles:
         quantiles = [*quantiles, 0.5]
     quantiles = sorted(quantiles)
 
     # Add cluster labels and sample weights to data
-    data_full = (
-        data[[var]]
-        .pipe(lambda x: turn_cats_to_continuous(x, [var]) if x[var].dtype == "category" else x)
-        .assign(**{"cluster": labels})
+    data = (
+        pd.Series(series)
+        .to_frame(name="var")
+        .pipe(lambda x: turn_cats_to_continuous(x, ["var"]) if x["var"].dtype == "category" else x)
+        .assign(**{"cluster": pd.Series(labels).astype("category")})
+        .pipe(lambda x: x if sample_weight is None else x.assign(**{"weight": sample_weight}))
     )
-    if sample_weight is not None:
-        data_full = data_full.assign(
-            **{
-                "weight": sample_weight[data.index]
-                if isinstance(sample_weight, pd.Series)
-                else _check_sample_weight(sample_weight, data.to_numpy())
-            }
-        )
 
     # Get statistics of the variable for each cluster and overall
     agg_spec = {
-        "mean": (var, partial_fn_with_info(np.average, ignore_nan=True, weights=getattr(data_full, "weight", None))),
-        "std": (var, partial_fn_with_info(std_weighted, ignore_nan=True, weights=getattr(data_full, "weight", None))),
+        "mean": ("var", partial_fn_with_info(np.average, ignore_nan=True, weights=getattr(data, "weight", None))),
+        "std": ("var", partial_fn_with_info(std_weighted, ignore_nan=True, weights=getattr(data, "weight", None))),
         **{
             f"q{q:g}": (
-                var,
+                "var",
                 partial_fn_with_info(
                     lambda x, q=q, **kws: np.float64(np.quantile(x, q, method="inverted_cdf", **kws)),
                     ignore_nan=True,
-                    weights=getattr(data_full, "weight", None),
+                    weights=getattr(data, "weight", None),
                 ),
             )
             for q in quantiles
         },
-        "n": (var, "count") if sample_weight is None else ("weight", "sum"),
+        "n": ("var", "count") if sample_weight is None else ("weight", "sum"),
     }
-    statistics = agg_with_overall(data_full, "cluster", **agg_spec, overall_label="all", observed=False).assign(
+    statistics = agg_with_overall(data, "cluster", **agg_spec, overall_label="all", observed=False).assign(
         **{
             "n_str": lambda x: (
                 x["n"]
@@ -493,7 +488,7 @@ def make_plot_continuous_var_dist_by_cluster(
             statistics.reset_index(),
             inherit_aes=False,
             va="bottom",
-            nudge_y=0.03 * (data_full[var].max() - data_full[var].min()),
+            nudge_y=0.03 * (data["var"].max() - data["var"].min()),
             size=8,
         )
         + p9.scale_x_discrete(limits=x_axis_ordering)
@@ -503,31 +498,28 @@ def make_plot_continuous_var_dist_by_cluster(
 
 
 def make_plot_categorical_var_dist_by_cluster(
-    data: pd.DataFrame,
-    labels: pd.Series[pd.CategoricalDtype],
-    var: str,
-    sample_weight: pd.Series | np.typing.ArrayLike | None = None,
+    series: ArrayLike,
+    labels: ArrayLike,
+    sample_weight: ArrayLike | None = None,
     cluster_size_decimals: int = 0,
     value_labels: Mapping[Any, Any] | None = None,
 ) -> p9.ggplot:
     """Creates the plot of the distribution of a categorical variable in each cluster."""
+    series = pd.Series(series)
+    var_name = series.name
 
     # Add cluster labels and sample weights to data
-    data_full = data[[var]].assign(**{"cluster": labels})
-    if sample_weight is not None:
-        data_full = data_full.assign(
-            **{
-                "weight": sample_weight[data.index]
-                if isinstance(sample_weight, pd.Series)
-                else _check_sample_weight(sample_weight, data.to_numpy())
-            }
-        )
+    data = (
+        series.to_frame("var")
+        .assign(**{"cluster": pd.Series(labels).astype("category")})
+        .pipe(lambda x: x if sample_weight is None else x.assign(**{"weight": sample_weight}))
+    )
 
     # Get statistics of the variable for each cluster and overall
     statistics = agg_with_overall(
-        data_full,
+        data,
         "cluster",
-        **{"n": (var, "count") if sample_weight is None else ("weight", "sum")},
+        **{"n": ("var", "count") if sample_weight is None else ("weight", "sum")},
         overall_label="all",
         observed=False,
     ).assign(
@@ -544,10 +536,10 @@ def make_plot_categorical_var_dist_by_cluster(
     # Get data for plotting value counts
     data_ggplot = (
         agg_with_overall(
-            data_full,
+            data,
             "cluster",
-            **{"n": (var, "count") if sample_weight is None else ("weight", "sum")},
-            by_vars=["cluster", var],
+            **{"n": ("var", "count") if sample_weight is None else ("weight", "sum")},
+            by_vars=["cluster", "var"],
             overall_label="all",
             observed=False,
         )
@@ -565,10 +557,11 @@ def make_plot_categorical_var_dist_by_cluster(
     # Construct plot
     return (
         p9.ggplot(data_ggplot)
-        + p9.aes(x=var, y="proportion")
+        + p9.aes(x="var", y="proportion")
         + p9.geom_bar(stat=p9.stat_identity())
         + p9.coord_flip()
         + p9.facet_wrap("cluster")
+        + p9.labs(x=str(var_name))
         + p9.scale_x_discrete(
             limits=lambda x: list(reversed(x)), labels=True if value_labels is None else dict(value_labels), drop=False
         )

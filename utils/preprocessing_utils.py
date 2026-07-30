@@ -126,6 +126,7 @@ def impute_allowed_skip(data: DatasetBundle, imp_val: dict[str, Any]) -> Dataset
     if data.na is None:
         raise ValueError("'data.na' may not be None.")
 
+    imp_count = 0
     for var, val in imp_val.items():
         mask = data.na[var].eq("allowed skip")
 
@@ -135,6 +136,10 @@ def impute_allowed_skip(data: DatasetBundle, imp_val: dict[str, Any]) -> Dataset
         if imputed_cat not in data.na[var].cat.categories:
             data.na[var] = data.na[var].cat.add_categories([imputed_cat])
         data.na.loc[mask, var] = imputed_cat
+
+        imp_count += mask.sum()
+
+    print(f"Imputed {imp_count} allowed skips.")
 
     return data
 

@@ -8,6 +8,7 @@ import math
 import numpy as np
 import pandas as pd
 import validclust
+from numpy.typing import ArrayLike
 from scipy.sparse import issparse
 from scipy.stats import chi2_contingency, entropy
 from sklearn.metrics import mutual_info_score
@@ -23,18 +24,22 @@ from utils.misc_utils import contingency_matrix
 
 
 # Copied from sklearn and modified to enable sample weights
-def pair_confusion_matrix(labels_true, labels_pred, sample_weight=None):
+def pair_confusion_matrix(labels_true, labels_pred, sample_weight: ArrayLike | None = None):
     """Pair confusion matrix arising from two clusterings [1]_."""
     labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
-    n_samples = np.int64(labels_true.shape[0]) if sample_weight is None else np.sum(sample_weight)
+    if sample_weight is not None:
+        sample_weight = _check_sample_weight(sample_weight, labels_true, dtype=np.float64, only_non_negative=True)
+    n_samples = np.float64(labels_true.shape[0]) if sample_weight is None else np.sum(sample_weight)
+    sum_squares_weight = n_samples if sample_weight is None else np.dot(sample_weight, sample_weight)
 
-    # Computation using the contingency data
-    contingency = contingency_matrix(labels_true, labels_pred, sample_weight=sample_weight, sparse=True, dtype=np.int64)
+    contingency = contingency_matrix(
+        labels_true, labels_pred, sample_weight=sample_weight, sparse=True, dtype=np.float64
+    )
     n_c = np.ravel(contingency.sum(axis=1))
     n_k = np.ravel(contingency.sum(axis=0))
     sum_squares = (contingency.data**2).sum()
-    C = np.empty((2, 2), dtype=np.int64)
-    C[1, 1] = sum_squares - n_samples
+    C = np.empty((2, 2), dtype=np.float64)
+    C[1, 1] = sum_squares - sum_squares_weight
     C[0, 1] = contingency.dot(n_k).sum() - sum_squares
     C[1, 0] = contingency.transpose().dot(n_c).sum() - sum_squares
     C[0, 0] = n_samples**2 - C[0, 1] - C[1, 0] - sum_squares
@@ -42,11 +47,9 @@ def pair_confusion_matrix(labels_true, labels_pred, sample_weight=None):
 
 
 # Copied from sklearn and modified to enable sample weights
-def adjusted_rand_score(labels_true, labels_pred, sample_weight=None):
+def adjusted_rand_score(labels_true, labels_pred, sample_weight: ArrayLike | None = None):
     """Rand index adjusted for chance."""
     (tn, fp), (fn, tp) = pair_confusion_matrix(labels_true, labels_pred, sample_weight=sample_weight)
-    # convert to Python integer types, to avoid overflow or underflow
-    tn, fp, fn, tp = int(tn), int(fp), int(fn), int(tp)
 
     # Special cases: empty data or full agreement
     if fn == 0 and fp == 0:
@@ -56,7 +59,7 @@ def adjusted_rand_score(labels_true, labels_pred, sample_weight=None):
 
 
 # Copied from sklearn and modified to enable sample weights
-def silhouette_score(X, labels, *, sample_weight=None, metric="euclidean", **kwds):
+def silhouette_score(X, labels, *, sample_weight: ArrayLike | None = None, metric="euclidean", **kwds):
     """Compute the mean Silhouette Coefficient of all samples."""
     return np.average(
         silhouette_samples(X, labels, sample_weight=sample_weight, metric=metric, **kwds), weights=sample_weight
@@ -64,7 +67,7 @@ def silhouette_score(X, labels, *, sample_weight=None, metric="euclidean", **kwd
 
 
 # Copied from sklearn and modified to enable sample weights
-def _silhouette_reduce(D_chunk, start, labels, label_freqs, sample_weight=None):
+def _silhouette_reduce(D_chunk, start, labels, label_freqs, sample_weight):
     """Accumulate silhouette statistics for vertical chunk of X."""
     n_chunk_samples = D_chunk.shape[0]
     # accumulate distances from each sample to each cluster
@@ -101,11 +104,11 @@ def _silhouette_reduce(D_chunk, start, labels, label_freqs, sample_weight=None):
 
 # Copied from sklearn and modified to enable sample weights
 # ruff: disable[B905]
-def silhouette_samples(X, labels, *, sample_weight=None, metric="euclidean", **kwds):
+def silhouette_samples(X, labels, *, sample_weight: ArrayLike | None = None, metric="euclidean", **kwds):
     """Compute the Silhouette Coefficient for each sample."""
     X, labels = check_X_y(X, labels, accept_sparse=["csr"])
     if sample_weight is not None:
-        sample_weight = _check_sample_weight(sample_weight, X)
+        sample_weight = _check_sample_weight(sample_weight, X, dtype=np.float64, only_non_negative=True)
 
     # Check for non-zero diagonal entries in precomputed distance matrix
     if metric == "precomputed":
@@ -135,10 +138,11 @@ def silhouette_samples(X, labels, *, sample_weight=None, metric="euclidean", **k
     intra_clust_dists = np.concatenate(intra_clust_dists)
     inter_clust_dists = np.concatenate(inter_clust_dists)
 
-    if sample_weight is None:
-        denom = (label_freqs - 1).take(labels, mode="clip")
-    else:
-        denom = label_freqs.take(labels, mode="clip") - sample_weight
+    denom = (
+        label_freqs.take(labels, mode="clip") - 1
+        if sample_weight is None
+        else label_freqs.take(labels, mode="clip") - sample_weight
+    )
     with np.errstate(divide="ignore", invalid="ignore"):
         intra_clust_dists /= denom
 
@@ -153,14 +157,17 @@ def silhouette_samples(X, labels, *, sample_weight=None, metric="euclidean", **k
 
 
 # Copied from sklearn and modified to enable sample weights
-def calinski_harabasz_score(X, labels, sample_weight=None):
+def calinski_harabasz_score(X, labels, sample_weight: ArrayLike | None = None):
     """Compute the Calinski and Harabasz score."""
     X, labels = check_X_y(X, labels)
+    if sample_weight is not None:
+        sample_weight = _check_sample_weight(sample_weight, X, dtype=np.float64, only_non_negative=True)
     le = LabelEncoder()
     labels = le.fit_transform(labels)
 
-    n_samples, _ = X.shape if sample_weight is None else (np.sum(sample_weight), None)
+    n_samples = len(X) if sample_weight is None else np.sum(sample_weight)
     n_labels = len(le.classes_)
+    check_number_of_labels(n_labels, len(X))
 
     extra_disp, intra_disp = 0.0, 0.0
     mean = np.average(X, weights=sample_weight, axis=0)
@@ -171,18 +178,24 @@ def calinski_harabasz_score(X, labels, sample_weight=None):
         n_k = len(cluster_k) if weights_k is None else np.sum(weights_k)
         mean_k = np.average(cluster_k, weights=weights_k, axis=0)
         extra_disp += n_k * np.sum((mean_k - mean) ** 2)
-        intra_disp += np.sum((cluster_k - mean_k) ** 2)
-
+        intra_disp += (
+            np.sum((cluster_k - mean_k) ** 2)
+            if weights_k is None
+            else np.sum(weights_k[:, np.newaxis] * (cluster_k - mean_k) ** 2)
+        )
     return 1.0 if intra_disp == 0.0 else extra_disp * (n_samples - n_labels) / (intra_disp * (n_labels - 1.0))
 
 
 # Copied from sklearn and modified to enable sample weights
-def davies_bouldin_score(X, labels, sample_weight=None):
+def davies_bouldin_score(X, labels, sample_weight: ArrayLike | None = None):
     """Compute the Davies-Bouldin score."""
     X, labels = check_X_y(X, labels)
+    if sample_weight is not None:
+        sample_weight = _check_sample_weight(sample_weight, X, dtype=np.float64, only_non_negative=True)
     le = LabelEncoder()
     labels = le.fit_transform(labels)
     n_labels = len(le.classes_)
+    check_number_of_labels(n_labels, len(X))
 
     intra_dists = np.zeros(n_labels)
     centroids = np.zeros((n_labels, len(X[0])), dtype=float)
@@ -192,7 +205,7 @@ def davies_bouldin_score(X, labels, sample_weight=None):
         weights_k = None if sample_weight is None else sample_weight[mask_k]
         centroid = np.average(cluster_k, weights=weights_k, axis=0)
         centroids[k] = centroid
-        intra_dists[k] = np.average(pairwise_distances(cluster_k, [centroid]), weights=weights_k, axis=0)
+        intra_dists[k] = np.average(pairwise_distances(cluster_k, [centroid]), weights=weights_k, axis=0).item()
 
     centroid_distances = pairwise_distances(centroids)
 
@@ -206,9 +219,13 @@ def davies_bouldin_score(X, labels, sample_weight=None):
 
 
 # Copied from sklearn and modified to enable sample weights
-def normalized_mutual_info_score(labels_true, labels_pred, *, sample_weight=None, average_method="arithmetic"):
+def normalized_mutual_info_score(
+    labels_true, labels_pred, *, sample_weight: ArrayLike | None = None, average_method="arithmetic"
+):
     """Normalized Mutual Information between two clusterings."""
     labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
+    if sample_weight is not None:
+        sample_weight = _check_sample_weight(sample_weight, labels_true, dtype=np.float64, only_non_negative=True)
     classes = np.unique(labels_true)
     clusters = np.unique(labels_pred)
 
@@ -240,9 +257,11 @@ def normalized_mutual_info_score(labels_true, labels_pred, *, sample_weight=None
 
 
 def variation_of_information(
-    labels_true: pd.Series, labels_pred: pd.Series, sample_weight: np.typing.ArrayLike | None = None
+    labels_true: ArrayLike, labels_pred: ArrayLike, sample_weight: ArrayLike | None = None
 ) -> float:
     labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
+    if sample_weight is not None:
+        sample_weight = _check_sample_weight(sample_weight, labels_true, dtype=np.float64, only_non_negative=True)
 
     contingency = contingency_matrix(
         labels_true, labels_pred, sample_weight=sample_weight, sparse=True, dtype=np.float64
