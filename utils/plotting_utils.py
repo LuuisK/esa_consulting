@@ -15,6 +15,7 @@ from sklearn.decomposition import PCA
 from sklearn.mixture._base import BaseMixture
 from sklearn.model_selection import GridSearchCV
 
+from utils.bootstrap_utils import BootstrapGridSearch
 from utils.corr_assoc_utils import create_corr_assoc_matrix
 from utils.metrics_utils import silhouette_samples
 from utils.misc_utils import (
@@ -374,7 +375,8 @@ def make_plot_grid_search(
     """
     Creates a plot of grid-search metrics.
 
-    The input data-frame needs the columns "metric, "mean", and "std". If metrics is `None` all metrics are plotted.
+    If metrics is `None`, all metrics are plotted. The line and error bars show the estimated mean with its Monte Carlo
+    standard error, the ribbon shows one standard deviation across bootstrapping runs around the mean.
     """
     if isinstance(metrics, str):
         metrics = (metrics,)
@@ -385,12 +387,149 @@ def make_plot_grid_search(
     return (
         p9.ggplot(data_ggplot)
         + p9.aes(x=x, y="mean")
-        + p9.geom_ribbon(p9.aes(ymin="mean - std", ymax="mean + std"), alpha=0.2)
+        + p9.geom_ribbon(p9.aes(ymin="mean - std", ymax="mean + std"), alpha=0.15)
         + p9.geom_line()
+        + p9.geom_errorbar(p9.aes(ymin="mean - mcse", ymax="mean + mcse"), width=0.15)
         + (None if len(metrics) <= 1 else p9.facet_wrap("metric", scales="free_y"))
         + p9.labs(x=x, y="values")
         + theme_ggplot
     )
+
+
+def make_plot_parameter_selection(
+    grid_search_boot: BootstrapGridSearch, x_param: str
+) -> tuple[p9.ggplot, p9.ggplot, p9.ggplot | None]:
+    """
+    Plot the two-stage parameter selection.
+
+    Returns:
+    - A plot of the selection metric.
+    - A plot of the differences in the selection metric between different parameter combinations.
+    - If it is a metric, a plot of the tie breaking metric, otherwise `None`.
+
+    The eligible parameter combinations are colored. The parameter combination that maximizes the selection metric and
+    the selected parameter combination are circled.
+    """
+    colors = ["green", "black", "darkblue", "orange"]
+    x_params_eligible = [params[x_param] for params in grid_search_boot.eligible_params_]
+
+    def eligible_fn(x: pd.DataFrame):
+        return x["n_components"].isin(x_params_eligible).map({True: "eligible", False: "uneligible"})
+
+    summaries_with_eligibility = grid_search_boot.summaries_.assign(**{"eligible": eligible_fn})
+    x_param_selected = grid_search_boot.best_params_[x_param]
+
+    # Selection metric plot
+    selection_metric_summaries = summaries_with_eligibility[lambda x: x["metric"].eq(grid_search_boot.selection_metric)]
+    x_param_selection_metric_max = selection_metric_summaries.loc[lambda x: x["mean"].idxmax(), x_param]
+    selection_metric_points = selection_metric_summaries[
+        lambda x: x[x_param].isin([x_param_selection_metric_max, x_param_selected])
+    ].assign(
+        **{
+            "point_type": lambda x: x[x_param].map(
+                {x_param_selection_metric_max: "maximum", x_param_selected: "selected"}
+            )
+        }
+    )
+    selection_metric_colors = dict(zip(["eligible", "uneligible", "maximum", "selected"], colors, strict=True))
+    selection_metric_plot = (
+        p9.ggplot(selection_metric_summaries)
+        + p9.aes(x=x_param, y="mean", color="eligible", fill="eligible", group=0)
+        # Line
+        + p9.geom_line()
+        # Error bars and ribbon
+        + p9.geom_errorbar(p9.aes(ymin="mean - mcse", ymax="mean + mcse"), width=1e-10)
+        + p9.geom_ribbon(p9.aes(x=x_param, ymin="mean - std", ymax="mean + std"), inherit_aes=False, alpha=0.15)
+        # Point
+        + p9.geom_point(p9.aes(color="point_type"), data=selection_metric_points, shape="o", fill="none", size=3)
+        # Labels, scales, legend guides, theme
+        + p9.labs(y=grid_search_boot.selection_metric)
+        + p9.scale_color_manual(selection_metric_colors)
+        + theme_ggplot
+        + p9.guides(
+            color=p9.guide_legend(
+                "colors", override_aes={"linetype": "", "shape": "s", "fill": list(selection_metric_colors.values())}
+            )
+        )
+    )
+
+    # Differences plot
+    difference_summaries = grid_search_boot.paired_difference_summaries_.assign(
+        **{"eligible": eligible_fn, "linetype1": "mean", "linetype2": "lower bound", "linetype3": "zero"}
+    )
+    differences_points = difference_summaries[
+        lambda x: x[x_param].isin([x_param_selection_metric_max, x_param_selected])
+    ].assign(
+        **{
+            "point_type": lambda x: x[x_param].map(
+                {
+                    x_param_selection_metric_max: f"maximum {grid_search_boot.selection_metric}",
+                    x_param_selected: "selected",
+                }
+            )
+        }
+    )
+    differences_colors = dict(
+        zip(["eligible", "uneligible", f"maximum {grid_search_boot.selection_metric}", "selected"], colors, strict=True)
+    )
+    differences_plot = (
+        p9.ggplot(difference_summaries)
+        + p9.aes(x=x_param, y="mean", color="eligible", fill="eligible", group=0)
+        # Lines
+        + p9.geom_line(p9.aes(linetype="linetype1"))
+        + p9.geom_line(p9.aes(y="lower_bound", linetype="linetype2"))
+        + p9.geom_hline(p9.aes(yintercept=0, linetype="linetype3"))
+        # Error bars and ribbon
+        + p9.geom_errorbar(p9.aes(ymin="lower_bound", ymax="mean"), width=1e-10, alpha=0.5)
+        + p9.geom_ribbon(p9.aes(x=x_param, ymin="lower_bound", ymax="mean"), inherit_aes=False, alpha=0.15)
+        # Points
+        + p9.geom_point(p9.aes(color="point_type"), data=differences_points, shape="o", fill="none", size=3)
+        # Labels, scales, legend guides, theme
+        + p9.labs(y="difference to maximum")
+        + p9.scale_color_manual(differences_colors)
+        + p9.scale_linetype_manual({"mean": "solid", "lower bound": "dashed", "zero": "dotted"})
+        + p9.guides(
+            color=p9.guide_legend(
+                "colors", override_aes={"linetype": "", "shape": "s", "fill": list(differences_colors.values())}
+            ),
+            linetype=p9.guide_legend(title="lines", position="right"),
+        )
+        + theme_ggplot
+    )
+
+    # Tie break plot
+    if grid_search_boot.tie_break is None:
+        tie_break_plot = None
+    else:
+        tie_break_summaries = summaries_with_eligibility[lambda x: x["metric"].eq(grid_search_boot.tie_break)]
+        tie_break_points = tie_break_summaries[lambda x: x[x_param].eq(x_param_selected)].assign(
+            **{"point_type": "selected"}
+        )
+        tie_break_colors = dict(
+            zip(["eligible", "uneligible", "selected"], [colors[i] for i in (0, 1, 3)], strict=True)
+        )
+        tie_break_plot = (
+            p9.ggplot(tie_break_summaries)
+            + p9.aes(x=x_param, y="mean", color="eligible", fill="eligible", group=0)
+            # Line
+            + p9.geom_line()
+            # Error bars and ribbon
+            + p9.geom_errorbar(p9.aes(ymin="mean - mcse", ymax="mean + mcse"), width=1e-10)
+            + p9.geom_ribbon(p9.aes(x=x_param, ymin="mean - std", ymax="mean + std"), inherit_aes=False, alpha=0.15)
+            # Point
+            + p9.geom_point(p9.aes(color="point_type"), data=tie_break_points, shape="o", fill="none", size=3)
+            # Labels, scales, legend guides, theme
+            + p9.labs(y=grid_search_boot.tie_break)
+            + p9.scale_color_manual(tie_break_colors)
+            + theme_ggplot
+            + p9.guides(
+                color=p9.guide_legend(
+                    "colors", override_aes={"linetype": "", "shape": "s", "fill": list(tie_break_colors.values())}
+                )
+            )
+        )
+
+    return selection_metric_plot, differences_plot, tie_break_plot
 
 
 def make_plot_continuous_var_dist_by_cluster(
