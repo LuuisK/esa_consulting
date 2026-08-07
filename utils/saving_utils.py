@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import os
-import pickle
 import warnings
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import cloudpickle
 import pandas as pd
 import plotnine as p9
 from plotnine.composition import Compose
@@ -98,34 +98,25 @@ def check_save_path(save_path: str | Path, allow_overwrite: bool = True, create_
 
 
 def save_object(data: Any, save_path: str | Path) -> None:
-    """
-    Saves a Python object as a Pickle file.
-
-    Saves the passed data with a given file name and prints a message.
-    """
+    """Save a Python object using cloudpickle."""
     save_path = Path(save_path)
-    ext = save_path.suffix
+    if save_path.suffix.lower() != ".pkl":
+        raise ValueError("The save path must have a .pkl extension.")
 
-    # Save in Pickle format and print message
-    if ext != ".pkl":
-        raise ValueError("The save path must have a pkl extension.")
     with open(save_path, "wb") as file:
-        pickle.dump(data, file, protocol=-1)
+        cloudpickle.dump(data, file, protocol=cloudpickle.DEFAULT_PROTOCOL)
     print(f"Saved file to {save_path}.")
 
 
 def load_object(file_path: str | Path) -> Any:
-    """
-    Loads a Python object from a Pickle file.
-    """
+    """Load a Python object saved using cloudpickle."""
     file_path = Path(file_path)
+    if file_path.suffix.lower() != ".pkl":
+        raise ValueError("The file path must have a .pkl extension.")
 
-    # Load from Pickle format and return data
-    ext = file_path.suffix
-    if ext != ".pkl":
-        raise ValueError("The file path must have a pkl extension.")
-    with open(file_path, "rb") as file:
-        data = pickle.load(file)
+    with file_path.open("rb") as file:
+        data = cloudpickle.load(file)
+    print(f"Loaded file from {file_path}.")
     return data
 
 
