@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import ast
 import builtins
 import itertools
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from utils.saving_utils import DatasetBundle
@@ -23,13 +25,15 @@ def create_meta(
     # Create data frame with variable labels
     data.meta = pd.DataFrame(var_labels.items(), columns=pd.Index(["name", "description"]), dtype="str")
 
-    # Add dictionaries of value labels
+    # Add string repr of dictionaries of value labels, so it can be serialized as parquet
     data.meta["labels"] = pd.NA
     for var in data.meta["name"]:
         if var in value_labels:
-            data.meta.loc[lambda x: x["name"].eq(var), "labels"] = [value_labels[var]]
+            data.meta.loc[lambda x: x["name"].eq(var), "labels"] = [
+                repr({k.item() if isinstance(k, np.number) else float(k): v for k, v in value_labels[var].items()})
+            ]
         else:
-            data.meta.loc[lambda x: x["name"].eq(var), "labels"] = [{}]
+            data.meta.loc[lambda x: x["name"].eq(var), "labels"] = [repr({})]
 
     return data
 
@@ -174,9 +178,9 @@ def convert_data_types(data: DatasetBundle) -> DatasetBundle:
         data.data[var] = data.data[var].map(cat_map).astype(cat_dtype)
 
         # Update keys in label dictionary
-        labels_old = data.meta.loc[lambda x: x["name"].eq(var), "labels"].item()
+        labels_old = ast.literal_eval(data.meta.loc[lambda x: x["name"].eq(var), "labels"].item())
         labels_new = {cat_map.get(key, key): value for key, value in labels_old.items()}
-        data.meta.loc[lambda x: x["name"].eq(var), "labels"] = [labels_new]
+        data.meta.loc[lambda x: x["name"].eq(var), "labels"] = [repr(labels_new)]
 
     return data
 
@@ -206,7 +210,7 @@ def remove_variables(data: DatasetBundle, drop_vars: list[str] | None = None) ->
     data.data = data.data.drop(columns=drop_vars, errors="ignore")
 
     if data.meta is not None:
-        data.meta = data.meta[lambda x: ~x["name"].isin(drop_vars)].reset_index(drop=True)
+        data.meta = data.meta.loc[lambda x: ~x["name"].isin(drop_vars)].reset_index(drop=True)
         data.meta["type"] = data.meta["type"].cat.remove_unused_categories()
         data.meta["group"] = data.meta["group"].cat.remove_unused_categories()
 
