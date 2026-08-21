@@ -9,6 +9,7 @@ source(file.path("utils/plotting_utils.R"))
 source(file.path("utils/saving_utils.R"))
 
 plots_folder <- file.path("outputs/dim_red")
+dir.create(plots_folder, recursive = TRUE, showWarnings = FALSE)
 
 default_colors <- theme_ggplot$palette.colour.discrete
 
