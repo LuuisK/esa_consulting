@@ -1,29 +1,15 @@
-# Data files
+# Folders
 data/raw/*
 data/preprocessed/*
 data/imputed/*
 data/dim_red/*
-
-outputs/contingency_tables/*
-outputs/corr_assoc_plots/*
-outputs/dim_red/*
-outputs/gmm_clustering/*
-outputs/kmeans_clustering/*
-outputs/imputed/*
-outputs/EDA_plots/*
+outputs/*
 
 !data/raw/.gitkeep
 !data/preprocessed/.gitkeep
 !data/imputed/.gitkeep
 !data/dim_red/.gitkeep
-
-!outputs/contingency_tables/.gitkeep
-!outputs/corr_assoc_plots/.gitkeep
-!outputs/dim_red/.gitkeep
-!outputs/gmm_clustering/.gitkeep
-!outputs/kmeans_clustering/.gitkeep
-!outputs/imputed/.gitkeep
-!outputs/EDA_plots/.gitkeep
+!outputs/.gitkeep
 
 # Python-generated files
 __pycache__/

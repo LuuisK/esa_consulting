@@ -391,7 +391,7 @@ def make_plot_grid_search(
         + p9.geom_line()
         + p9.geom_errorbar(p9.aes(ymin="mean - mcse", ymax="mean + mcse"), width=0.15)
         + (None if len(metrics) <= 1 else p9.facet_wrap("metric", scales="free_y"))
-        + p9.labs(x=x, y="values")
+        + p9.labs(x=x, y=metrics[0] if len(metrics) == 1 else "values")
         + theme_ggplot
     )
 
@@ -414,7 +414,7 @@ def make_plot_parameter_selection(
     x_params_eligible = [params[x_param] for params in grid_search_boot.eligible_params_]
 
     def eligible_fn(x: pd.DataFrame):
-        return x["n_components"].isin(x_params_eligible).map({True: "eligible", False: "uneligible"})
+        return x[x_param].isin(x_params_eligible).map({True: "eligible", False: "uneligible"})
 
     summaries_with_eligibility = grid_search_boot.summaries_.assign(**{"eligible": eligible_fn})
     x_param_selected = grid_search_boot.best_params_[x_param]
@@ -431,7 +431,11 @@ def make_plot_parameter_selection(
             )
         }
     )
-    selection_metric_colors = dict(zip(["eligible", "uneligible", "maximum", "selected"], colors, strict=True))
+    selection_metric_colors = {
+        k: v
+        for k, v in zip(["eligible", "uneligible", "maximum", "selected"], colors, strict=True)
+        if k in {*selection_metric_summaries["eligible"], *selection_metric_points["point_type"]}
+    }
     selection_metric_plot = (
         p9.ggplot(selection_metric_summaries)
         + p9.aes(x=x_param, y="mean", color="eligible", fill="eligible", group=0)
@@ -444,7 +448,7 @@ def make_plot_parameter_selection(
         + p9.geom_point(p9.aes(color="point_type"), data=selection_metric_points, shape="o", fill="none", size=3)
         # Labels, scales, legend guides, theme
         + p9.labs(y=grid_search_boot.selection_metric)
-        + p9.scale_color_manual(selection_metric_colors)
+        + p9.scale_color_manual(selection_metric_colors, breaks=list(selection_metric_colors))
         + theme_ggplot
         + p9.guides(
             color=p9.guide_legend(
@@ -469,9 +473,13 @@ def make_plot_parameter_selection(
             )
         }
     )
-    differences_colors = dict(
-        zip(["eligible", "uneligible", f"maximum {grid_search_boot.selection_metric}", "selected"], colors, strict=True)
-    )
+    differences_colors = {
+        k: v
+        for k, v in zip(
+            ["eligible", "uneligible", f"maximum {grid_search_boot.selection_metric}", "selected"], colors, strict=True
+        )
+        if k in {*difference_summaries["eligible"], *differences_points["point_type"]}
+    }
     differences_plot = (
         p9.ggplot(difference_summaries)
         + p9.aes(x=x_param, y="mean", color="eligible", fill="eligible", group=0)
@@ -486,7 +494,7 @@ def make_plot_parameter_selection(
         + p9.geom_point(p9.aes(color="point_type"), data=differences_points, shape="o", fill="none", size=3)
         # Labels, scales, legend guides, theme
         + p9.labs(y="difference to maximum")
-        + p9.scale_color_manual(differences_colors)
+        + p9.scale_color_manual(differences_colors, breaks=list(differences_colors))
         + p9.scale_linetype_manual({"mean": "solid", "lower bound": "dashed", "zero": "dotted"})
         + p9.guides(
             color=p9.guide_legend(
@@ -505,9 +513,11 @@ def make_plot_parameter_selection(
         tie_break_points = tie_break_summaries[lambda x: x[x_param].eq(x_param_selected)].assign(
             **{"point_type": "selected"}
         )
-        tie_break_colors = dict(
-            zip(["eligible", "uneligible", "selected"], [colors[i] for i in (0, 1, 3)], strict=True)
-        )
+        tie_break_colors = {
+            k: v
+            for k, v in zip(["eligible", "uneligible", "selected"], [colors[i] for i in (0, 1, 3)], strict=True)
+            if k in {*tie_break_summaries["eligible"], *tie_break_points["point_type"]}
+        }
         tie_break_plot = (
             p9.ggplot(tie_break_summaries)
             + p9.aes(x=x_param, y="mean", color="eligible", fill="eligible", group=0)
@@ -520,7 +530,7 @@ def make_plot_parameter_selection(
             + p9.geom_point(p9.aes(color="point_type"), data=tie_break_points, shape="o", fill="none", size=3)
             # Labels, scales, legend guides, theme
             + p9.labs(y=grid_search_boot.tie_break)
-            + p9.scale_color_manual(tie_break_colors)
+            + p9.scale_color_manual(tie_break_colors, breaks=list(tie_break_colors))
             + theme_ggplot
             + p9.guides(
                 color=p9.guide_legend(
@@ -548,6 +558,8 @@ def make_plot_continuous_var_dist_by_cluster(
     If a categorical variable is given, its (ordered) category codes are treated as a continuous variable. Above each
     distribution, the (effective) cluster size is shown. If sort the clusters in the plot are sorted by mean.
     """
+    series = pd.Series(series)
+
     quantiles = [0.02, 0.1, 0.33, 0.5, 0.67, 0.9, 0.98] if quantiles is None else list(quantiles)
     if 0.5 not in quantiles:
         quantiles = [*quantiles, 0.5]
@@ -630,6 +642,7 @@ def make_plot_continuous_var_dist_by_cluster(
             nudge_y=0.03 * (data["var"].max() - data["var"].min()),
             size=8,
         )
+        + p9.labs(y=str(series.name))
         + p9.scale_x_discrete(limits=x_axis_ordering)
         + p9.scale_color_cmap_d(cmap_name="viridis", name="Quantile band", labels=legend_labels)  # type: ignore
         + theme_ggplot
@@ -645,7 +658,6 @@ def make_plot_categorical_var_dist_by_cluster(
 ) -> p9.ggplot:
     """Creates the plot of the distribution of a categorical variable in each cluster."""
     series = pd.Series(series)
-    var_name = series.name
 
     # Add cluster labels and sample weights to data
     data = (
@@ -700,7 +712,7 @@ def make_plot_categorical_var_dist_by_cluster(
         + p9.geom_bar(stat=p9.stat_identity())
         + p9.coord_flip()
         + p9.facet_wrap("cluster")
-        + p9.labs(x=str(var_name))
+        + p9.labs(x=str(series.name))
         + p9.scale_x_discrete(
             limits=lambda x: list(reversed(x)), labels=True if value_labels is None else dict(value_labels), drop=False
         )
