@@ -1,0 +1,13 @@
+# Ignore hidden files with exceptions
+**/.*
+!.python-version
+**/__pycache__
+**/*.py[cod]
+
+# Ignore renv except renv/activate.R
+renv/*
+!renv/activate.R
+
+# Ignore input data and generated artifacts, they are mounted at runtime instead of copied
+data
+outputs

@@ -1,0 +1,22 @@
+services:
+  analysis:
+    build:
+      context: .
+      args:
+        ANALYSIS_UID: "${HOST_UID:-1000}"
+        ANALYSIS_GID: "${HOST_GID:-1000}"
+    image: esa-consulting-analysis:local
+    platform: linux/amd64
+    init: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/workspace
+    ports:
+      - "127.0.0.1:8888:8888"
+    command:
+      - jupyter
+      - lab
+      - --ip=0.0.0.0
+      - --no-browser
+      - --ServerApp.root_dir=/workspace

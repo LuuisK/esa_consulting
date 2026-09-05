@@ -13,6 +13,7 @@ outputs/*
 
 # Python-generated files
 __pycache__/
+.ipynb_checkpoints/
 *.py[oc]
 build/
 dist/
@@ -22,13 +23,11 @@ wheels/
 # R- and RStudio-generated files
 .RData
 .Rhistory
-.Rprofile
 .REnv
 .Rproj.user
 
 # Virtual environments
 .venv
-renv
 
 # VSCode
 .vscode
