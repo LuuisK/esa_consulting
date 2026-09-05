@@ -1,0 +1,22 @@
+{
+  "name": "ESA analysis",
+  "dockerComposeFile": "../compose.yaml",
+  "service": "analysis",
+  "workspaceFolder": "/workspace",
+  "remoteUser": "analysis",
+  "overrideCommand": false,
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-toolsai.jupyter",
+        "REditorSupport.r"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/opt/venv/bin/python",
+        "python.useEnvironmentsExtension": false
+      }
+    }
+  }
+}

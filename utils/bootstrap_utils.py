@@ -45,6 +45,24 @@ SummaryRow = tuple[float, float, float, int, Scope]
 SUMMARY_COLUMNS = pd.Index(["metric", "mean", "mcse", "std", "n_valid", "scope"])
 
 
+def nan_if_single_cluster(metric: EstimatorMetric) -> EstimatorMetric:
+    """Make it so that a metric returns NaN if all input labels are equal."""
+
+    def wrapped_metric(
+        estimator: BaseEstimator,
+        X: NDArray[Any],
+        labels: NDArray[Any],
+        /,
+        *,
+        sample_weight: NDArray[np.float64] | None,
+    ) -> MetricValue:
+        if np.unique(labels).size == 1:
+            return math.nan
+        return metric(estimator, X, labels, sample_weight=sample_weight)
+
+    return wrapped_metric
+
+
 def _check_metric_value(value: object, name: str, *, allow_nan: bool) -> float:
     """Convert a scalar metric value to a float."""
     value_array = np.asarray(value, dtype=np.float64)
