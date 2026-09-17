@@ -36,18 +36,15 @@ pred_valid <- quickpred(
   mincor = 0.1
 )
 
-
-# ============================================================
-# NEU: Gezielt cart für Variablen mit sehr seltenen Kategorien
-# ============================================================
-
 min_category_count <- 10
 
-# -- Discovery data --
+# Discovery data
 factor_vars_discov <- data_discov$data |>
   select(where(is.factor)) |>
   names()
 
+# problem_vars speichert alle kategorialen Variablen, bei denen
+# mindestens eine Kategorie weniger als 10 Beobachtungen hat.
 problem_vars_discov <- factor_vars_discov[
   sapply(factor_vars_discov, function(v) {
     any(table(data_discov$data[[v]]) < min_category_count)
@@ -58,12 +55,14 @@ meth_discov <- make.method(
   data_discov$data,
   defaultMethod = c("pmm", "polyreg", "polyreg", "polr")
 )
+# Gezielt cart für Variablen mit sehr seltenen Kategorien
 meth_discov[problem_vars_discov] <- "cart"
 
-# -- Validation data --
+# Validation data
 factor_vars_valid <- data_valid$data |>
   select(where(is.factor)) |>
   names()
+
 
 problem_vars_valid <- factor_vars_valid[
   sapply(factor_vars_valid, function(v) {
@@ -77,9 +76,9 @@ meth_valid <- make.method(
 )
 meth_valid[problem_vars_valid] <- "cart"
 
-# Zur Kontrolle, welche Variablen auf cart umgestellt wurden
-problem_vars_discov
-problem_vars_valid
+# Zur Kontrolle, welche Variablen auf cart umgestellt wurden:
+# problem_vars_discov
+# problem_vars_valid
 
 
 # Set outputs folder
@@ -89,7 +88,7 @@ outputs_folder <- "data/imputed"
 mice_iterations <- 5
 
 
-#' Function for MICE
+# Function for MICE
 do_mice <- function(data, seed = NA, ...) {
   assert_data_frame(data)
 
