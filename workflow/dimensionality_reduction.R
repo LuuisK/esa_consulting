@@ -1,6 +1,6 @@
 # Notebook for dimensionality reduction
-#' Run notebooks in the following order: preprocessing.ipynb -> imputation.R ->
-#' dimensionality_reduction.R -> gmm_clustering.ipynb
+# Run notebooks in the following order: preprocessing.ipynb -> imputation.R ->
+# dimensionality_reduction.R -> gmm_clustering.ipynb
 
 # Load required packages
 library(arrow) # read and write parquet
@@ -23,7 +23,7 @@ outputs_folder <- "data/dim_red"
 n_comp <- 10
 
 
-#' Function for MFA
+# Function for MFA
 do_mfa <- function(data, n_comp, weight_var = NULL, ...) {
     assert_list(data)
     assert_int(n_comp, lower = 0)
@@ -86,3 +86,42 @@ write_parquet(
     data_valid_mfa,
     file.path(outputs_folder, "data_valid_mfa.parquet")
 )
+
+
+
+
+##############################################################
+# Check Variance explained
+##############################################################
+
+component_to_check <- 15
+
+# Discovery
+
+explained_var_discov <- as_tibble(mfa_discov$eig, rownames = "component") |>
+    rename(cum_per_var = `cumulative percentage of variance`) |>
+    mutate(component = as.integer(sub("comp ", "", component)))
+
+result_at_15_discov <- explained_var_discov |>
+    filter(component == component_to_check)
+
+cat(sprintf(
+    "Discovery, component %d: %.2f%% cumulative variance\n",
+    result_at_15_discov$component,
+    result_at_15_discov$cum_per_var
+))
+
+
+# Validation
+explained_var_valid <- as_tibble(mfa_valid$eig, rownames = "component") |>
+    rename(cum_per_var = `cumulative percentage of variance`) |>
+    mutate(component = as.integer(sub("comp ", "", component)))
+
+result_at_15_valid <- explained_var_valid |>
+    filter(component == component_to_check)
+
+cat(sprintf(
+    "Validation, component %d: %.2f%% cumulative variance\n",
+    result_at_15_valid$component,
+    result_at_15_valid$cum_per_var
+))

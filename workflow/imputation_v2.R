@@ -26,15 +26,52 @@ data_valid <- load_data_bundle(
 # data_valid$data$fr12_nps1 <- droplevels(data_valid$data$fr12_nps1)
 
 
+# ============================================================
+# Discovery
+# ============================================================
+
+# Volle Standardmatrix, wie mice sie ohne quickpred verwenden würde
+pred_full_discov <- make.predictorMatrix(data_discov$data)
+
+# Gesamtzahl der Prädiktor-Beziehungen (Zellen, exkl. Diagonale)
+n_total_discov <- sum(pred_full_discov == 1)
+
 # Predictor Matrix via quickpred erzeugen, um Multikollinearität zu reduzieren
 pred_discov <- quickpred(
   data_discov$data,
   mincor = 0.1
 )
+
+# Wie viele davon hat quickpred rausgeworfen?
+n_dropped_discov <- sum(pred_full_discov == 1 & pred_discov == 0)
+
+n_total_discov
+n_dropped_discov
+n_dropped_discov / n_total_discov  # Anteil in Prozent
+
+
+# ============================================================
+# Validation
+# ============================================================
+
+# Volle Standardmatrix für Validation, separat von der discov-Matrix
+pred_full_valid <- make.predictorMatrix(data_valid$data)
+
+# Gesamtzahl der Prädiktor-Beziehungen (Zellen, exkl. Diagonale)
+n_total_valid <- sum(pred_full_valid == 1)
+
 pred_valid <- quickpred(
   data_valid$data,
   mincor = 0.1
 )
+
+# Wie viele davon hat quickpred rausgeworfen?
+n_dropped_valid <- sum(pred_full_valid == 1 & pred_valid == 0)
+
+n_total_valid
+n_dropped_valid
+n_dropped_valid / n_total_valid  # Anteil in Prozent
+
 
 min_category_count <- 10
 
@@ -85,7 +122,7 @@ meth_valid[problem_vars_valid] <- "cart"
 outputs_folder <- "data/imputed"
 
 # Set number of MICE iterations
-mice_iterations <- 5
+mice_iterations <- 40
 
 
 # Function for MICE
@@ -192,110 +229,108 @@ data.frame(
   )
 )
 
-
-# ============================================================
-# MICE convergence diagnostics
-# ============================================================
-
-# ---- Discovery data ----
-
-imp_diag_discov <- do_mice(
-  data_discov$data,
-  m = 5,
-  maxit = 40,
-  predictorMatrix = pred_discov,
-  method = meth_discov,
-  seed = 3523
-)
-
-# Show number of iterations
-imp_diag_discov$iteration
-
-# Trace plots
-plot(imp_diag_discov)
-
-# Numerical convergence diagnostics
-conv_discov <- mice::convergence(imp_diag_discov)
-
-print(conv_discov)
-
-
-# ---- Validation data ----
-
-imp_diag_valid <- do_mice(
-  data_valid$data,
-  m = 5,
-  maxit = 40,
-  predictorMatrix = pred_valid,
-  method = meth_valid,
-  seed = 4363
-)
-
-# Show number of iterations
-imp_diag_valid$iteration
-
-# Trace plots
-plot(imp_diag_valid)
-
-# Numerical convergence diagnostics
-conv_valid <- mice::convergence(imp_diag_valid)
-
-print(conv_valid)
-
-
-
-
-
-
-
-
-
-
-
-# Häufigste Event-Typen (out-Feld) bei discov
-sort(
-  table(imp_diag_discov$loggedEvents$out),
-  decreasing = TRUE
-)[1:20]
-
-# Welche Variablen (dep) am häufigsten betroffen sind
-sort(
-  table(imp_diag_discov$loggedEvents$dep),
-  decreasing = TRUE
-)[1:20]
-
-# Welche Methode am häufigsten betroffen ist
-table(imp_diag_discov$loggedEvents$meth)
-
-# Kombiniert: Variable x Methode x Ereignistyp, häufigste zuerst
-imp_diag_discov$loggedEvents |>
-  dplyr::count(dep, meth, out, sort = TRUE) |>
-  head(30)
-
-
-
-table(data_discov$data$vx210)
-table(data_valid$data$typ2)
-table(data_valid$data$fag_sch)
-table(data_valid$data$Anzahl)
-table(data_discov$data$fr12_nps1)
-
-
-# Systematisch prüfen: welche Variablen haben am Ende (letzte Iteration) einen psrf über 1.2?
-
-last_it <- max(conv_discov$.it, na.rm = TRUE)
-
-problem_convergence_discov <- conv_discov |>
-  dplyr::filter(.it == last_it, !is.na(psrf), psrf > 1.2) |>
-  dplyr::arrange(dplyr::desc(psrf))
-
-print(problem_convergence_discov)
-
-# Gleiches für den Validation-Datensatz
-problem_convergence_valid <- conv_valid |>
-  dplyr::filter(.it == last_it, !is.na(psrf), psrf > 1.2) |>
-  dplyr::arrange(dplyr::desc(psrf))
-
-print(problem_convergence_valid)
-
-
+#
+# # ============================================================
+# # MICE convergence diagnostics
+# # ============================================================
+#
+# # ---- Discovery data ----
+#
+# imp_diag_discov <- do_mice(
+#   data_discov$data,
+#   m = 5,
+#   maxit = 40,
+#   predictorMatrix = pred_discov,
+#   method = meth_discov,
+#   seed = 3523
+# )
+#
+# # Show number of iterations
+# imp_diag_discov$iteration
+#
+# # Trace plots
+# plot(imp_diag_discov)
+#
+# # Numerical convergence diagnostics
+# conv_discov <- mice::convergence(imp_diag_discov)
+#
+# print(conv_discov)
+#
+#
+# # ---- Validation data ----
+#
+# imp_diag_valid <- do_mice(
+#   data_valid$data,
+#   m = 5,
+#   maxit = 40,
+#   predictorMatrix = pred_valid,
+#   method = meth_valid,
+#   seed = 4363
+# )
+#
+# # Show number of iterations
+# imp_diag_valid$iteration
+#
+# # Trace plots
+# plot(imp_diag_valid)
+#
+# # Numerical convergence diagnostics
+# conv_valid <- mice::convergence(imp_diag_valid)
+#
+# print(conv_valid)
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+# # Häufigste Event-Typen (out-Feld) bei discov
+# sort(
+#   table(imp_diag_discov$loggedEvents$out),
+#   decreasing = TRUE
+# )[1:20]
+#
+# # Welche Variablen (dep) am häufigsten betroffen sind
+# sort(
+#   table(imp_diag_discov$loggedEvents$dep),
+#   decreasing = TRUE
+# )[1:20]
+#
+# # Welche Methode am häufigsten betroffen ist
+# table(imp_diag_discov$loggedEvents$meth)
+#
+# # Kombiniert: Variable x Methode x Ereignistyp, häufigste zuerst
+# imp_diag_discov$loggedEvents |>
+#   dplyr::count(dep, meth, out, sort = TRUE) |>
+#   head(30)
+#
+#
+#
+# table(data_discov$data$vx210)
+# table(data_valid$data$typ2)
+# table(data_valid$data$fag_sch)
+# table(data_valid$data$Anzahl)
+# table(data_discov$data$fr12_nps1)
+#
+#
+# # Systematisch prüfen: welche Variablen haben am Ende (letzte Iteration) einen psrf über 1.2?
+#
+# last_it <- max(conv_discov$.it, na.rm = TRUE)
+#
+# problem_convergence_discov <- conv_discov |>
+#   dplyr::filter(.it == last_it, !is.na(psrf), psrf > 1.2) |>
+#   dplyr::arrange(dplyr::desc(psrf))
+#
+# print(problem_convergence_discov)
+#
+# # Gleiches für den Validation-Datensatz
+# problem_convergence_valid <- conv_valid |>
+#   dplyr::filter(.it == last_it, !is.na(psrf), psrf > 1.2) |>
+#   dplyr::arrange(dplyr::desc(psrf))
+#
+# print(problem_convergence_valid)
