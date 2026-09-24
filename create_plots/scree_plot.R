@@ -21,7 +21,7 @@ explained_var <- as_tibble(mfa$eig, rownames = "component") |>
         cum_per_var = `cumulative percentage of variance`
     ) |>
     mutate(component = as.integer(sub("comp ", "", component))) |>
-    filter(component <= 10)
+    filter(component <= 30)
 
 coeff <- round(max(explained_var$cum_per_var) / max(explained_var$per_var))
 
@@ -54,7 +54,10 @@ scree_plot <- explained_var |>
     ) +
     labs(x = "component") +
     theme_ggplot +
-    theme(panel.grid.major.x = element_blank())
+    theme(panel.grid.major.x = element_blank(),
+    axis.title = element_text(size = 20),
+    axis.text = element_text(size = 16)
+    )
 
 ggsave(
     file.path(plots_folder, "scree_plot.png"),
