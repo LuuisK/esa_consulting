@@ -19,6 +19,12 @@ data_valid <- load_data_bundle(
   file.path("data/preprocessed/data_valid_reduced")
 )
 
+# Fix make.method bug
+data_discov$data <- as.data.frame(data_discov$data)
+data_valid$data <- as.data.frame(data_valid$data)
+
+
+
 # Diesen Part bracuuhen wir mit Preprocessing_Version_2 nicht mehr
 # fr12_nps1: leeres Level (Kategorie 5, keine Beobachtungen im discov-Split) entfernen,
 # damit polr das Modell überhaupt fitten kann
