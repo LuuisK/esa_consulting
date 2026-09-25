@@ -10,7 +10,7 @@
     "vscode": {
       "extensions": [
         "ms-python.python",
-        "ms-toolsai.jupyter",
+        "ms-toolsai.jupyter@2025.8.2025080601",
         "REditorSupport.r"
       ],
       "settings": {
