@@ -11,13 +11,22 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 # Install necessary Linux libraries
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends curl git \
+    && apt-get install --yes --no-install-recommends \
+        cmake \
+        curl \
+        git \
+        libcurl4-openssl-dev \
+        libfreetype6-dev \
+        libpng-dev \
+        pkg-config \
+        zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Configure uv and renv, limit numerical libraries to one thread
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_PYTHON=3.12.12 \
     UV_PYTHON_INSTALL_DIR=/opt/uv/python \
+    VIRTUAL_ENV=/opt/venv \
     RENV_PATHS_LIBRARY=/opt/renv/library \
     PATH=/opt/venv/bin:$PATH \
     OPENBLAS_NUM_THREADS=1 \
@@ -41,6 +50,12 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     UV_LINK_MODE=copy \
     uv sync --locked --no-install-project --compile-bytecode
+
+# Register a kernel that does not depend on Python environment discovery
+RUN /opt/venv/bin/python -m ipykernel install \
+    --prefix=/usr/local \
+    --name=esa-analysis \
+    --display-name="Python (ESA analysis)"
 
 # Create the user and the workspace directory
 ARG ANALYSIS_UID=1000
