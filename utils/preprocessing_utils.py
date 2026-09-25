@@ -220,16 +220,15 @@ def remove_variables(data: DatasetBundle, drop_vars: list[str] | None = None) ->
     return data
 
 
-def pool_ordinal_categories_and_remove_unsupported_variables(
-    data: DatasetBundle, *, min_count: int = 30, min_weighted_count: float = 20, weight_var: str = "wichtn"
+def pool_ordinal_categories(
+    data: DatasetBundle, *, min_count: int, min_weighted_count: float, weight_var: str
 ) -> tuple[DatasetBundle, pd.DataFrame]:
     """
-    Pool sparse ordinal categories and remove unsupported categorical variables.
+    Pool sparse adjacent ordinal categories.
 
     The lowest ordinal category is assumed to be the baseline and will not be pooled with other categories. Pooling
-    iteratively pools categories without sufficient support into lower neighboring ones. Subsequently all categorical
-    variables are checked for their support and removed if they don't meet the specified thresholds in all their
-    categories.
+    iteratively combines categories without sufficient support with neighboring higher categories. An unsupported
+    upper tail is combined with the preceding non-baseline category where possible.
     """
     data = data.copy()
     if data.meta is None:
@@ -242,12 +241,11 @@ def pool_ordinal_categories_and_remove_unsupported_variables(
     sample_weight = data.data[weight_var]
     sample_weight = sample_weight * len(sample_weight) / sample_weight.sum()
 
-    categorical_vars = data.data.select_dtypes("category").columns.to_list()
     ordinal_vars: list[str] = data.meta.loc[
         lambda x: x["type"].eq("ordinal") & x["name"].isin(data.data.columns), "name"
     ].to_list()
     category_maps: dict[str, dict[Any, Any]] = {
-        var: {category: category for category in data.data[var].cat.categories} for var in categorical_vars
+        var: {category: category for category in data.data[var].cat.categories} for var in ordinal_vars
     }
 
     # Pool adjacent ordinal categories while keeping the first category separate
@@ -301,29 +299,10 @@ def pool_ordinal_categories_and_remove_unsupported_variables(
         data.meta.loc[lambda x: x["name"].eq(var), "labels"] = repr(new_labels)
         category_maps[var] = pooling_map
 
-    # Remove categorical variables with fewer than two supported observed categories
-    unsupported_vars: list[str] = []
-    for var in categorical_vars:
-        values = data.data[var]
-        counts = values.value_counts(sort=False)
-        weighted_counts = sample_weight.groupby(values, observed=False).sum()
-        observed_categories = [category for category in values.cat.categories if counts[category] > 0]
-        is_supported = len(observed_categories) >= 2 and all(
-            counts[category] >= min_count and weighted_counts[category] >= min_weighted_count
-            for category in observed_categories
-        )
-        if not is_supported:
-            unsupported_vars.append(var)
-
-    unsupported_vars_set = set(unsupported_vars)
     category_mapping_rows = [
-        {
-            "variable": var,
-            "original_category": original_category,
-            "pooled_category": pd.NA if var in unsupported_vars_set else pooled_category,
-        }
+        {"variable": var, "original_category": original_category, "pooled_category": pooled_category}
         for var, category_map in category_maps.items()
         for original_category, pooled_category in category_map.items()
     ]
     category_mapping = pd.DataFrame(category_mapping_rows, columns=["variable", "original_category", "pooled_category"])
-    return remove_variables(data, unsupported_vars), category_mapping
+    return data, category_mapping
