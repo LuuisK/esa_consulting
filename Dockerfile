@@ -11,7 +11,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 # Install necessary Linux libraries
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends git \
+    && apt-get install --yes --no-install-recommends curl git \
     && rm -rf /var/lib/apt/lists/*
 
 # Configure uv and renv, limit numerical libraries to one thread
@@ -33,13 +33,14 @@ RUN --mount=type=cache,target=/opt/renv/cache \
     mkdir -p /opt/renv/library \
     && RENV_PATHS_CACHE=/opt/renv/cache \
         RENV_CONFIG_CACHE_SYMLINKS=FALSE \
+        RENV_CONFIG_INSTALL_JOBS=1 \
         R -s -e 'source("renv/activate.R"); renv::restore(prompt = FALSE)'
 
 # Install Python packages
 COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     UV_LINK_MODE=copy \
-    uv sync --locked --no-install-project
+    uv sync --locked --no-install-project --compile-bytecode
 
 # Create the user and the workspace directory
 ARG ANALYSIS_UID=1000
