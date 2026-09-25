@@ -218,3 +218,112 @@ def remove_variables(data: DatasetBundle, drop_vars: list[str] | None = None) ->
         data.na = data.na.drop(columns=drop_vars, errors="ignore")
 
     return data
+
+
+def pool_ordinal_categories_and_remove_unsupported_variables(
+    data: DatasetBundle, *, min_count: int = 30, min_weighted_count: float = 20, weight_var: str = "wichtn"
+) -> tuple[DatasetBundle, pd.DataFrame]:
+    """
+    Pool sparse ordinal categories and remove unsupported categorical variables.
+
+    The lowest ordinal category is assumed to be the baseline and will not be pooled with other categories. Pooling
+    iteratively pools categories without sufficient support into lower neighboring ones. Subsequently all categorical
+    variables are checked for their support and removed if they don't meet the specified thresholds in all their
+    categories.
+    """
+    data = data.copy()
+    if data.meta is None:
+        raise ValueError("'data.meta' may not be None.")
+
+    if min_count < 1 or not np.isfinite(min_weighted_count) or min_weighted_count < 0:
+        raise ValueError("min_count must be positive and min_weighted_count must be finite and non-negative.")
+
+    # Normalize weights to make weighted support comparable to raw counts
+    sample_weight = data.data[weight_var]
+    sample_weight = sample_weight * len(sample_weight) / sample_weight.sum()
+
+    categorical_vars = data.data.select_dtypes("category").columns.to_list()
+    ordinal_vars: list[str] = data.meta.loc[
+        lambda x: x["type"].eq("ordinal") & x["name"].isin(data.data.columns), "name"
+    ].to_list()
+    category_maps: dict[str, dict[Any, Any]] = {
+        var: {category: category for category in data.data[var].cat.categories} for var in categorical_vars
+    }
+
+    # Pool adjacent ordinal categories while keeping the first category separate
+    for var in ordinal_vars:
+        values = data.data[var]
+        if not isinstance(values.dtype, pd.CategoricalDtype) or not values.cat.ordered:
+            raise ValueError(f"'{var}' must be an ordered categorical variable.")
+
+        categories = values.cat.categories.to_list()
+        if len(categories) == 0:
+            continue
+
+        counts = {category: values.eq(category).sum() for category in categories}
+        weighted_counts = {category: sample_weight.loc[values.eq(category)].sum() for category in categories}
+
+        def has_support(bin_categories: list[Any]) -> bool:
+            return (
+                sum(counts[category] for category in bin_categories) >= min_count
+                and sum(weighted_counts[category] for category in bin_categories) >= min_weighted_count
+            )
+
+        category_bins = [[categories[0]]]
+        next_category: list[Any] = []
+        for category in categories[1:]:
+            next_category.append(category)
+            if has_support(next_category):
+                category_bins.append(next_category)
+                next_category = []
+
+        # Merge an unsupported upper tail into the preceding non-protected bin
+        if len(next_category) != 0:
+            if len(category_bins) == 1:
+                category_bins.append(next_category)
+            else:
+                category_bins[-1].extend(next_category)
+
+        category_bins_by_name = {f"{bin[0]}-{bin[-1]}" if len(bin) > 1 else bin[0]: bin for bin in category_bins}
+        pooling_map = {category: name for name, bin in category_bins_by_name.items() for category in bin}
+        labels = ast.literal_eval(data.meta.loc[lambda x: x["name"].eq(var), "labels"].item())
+        if not isinstance(labels, dict):
+            raise ValueError(f"Labels for '{var}' must be a dictionary.")
+
+        new_categories = list(category_bins_by_name)
+        new_labels = {
+            name: " / ".join(str(labels.get(category, category)) for category in category_bin)
+            for name, category_bin in category_bins_by_name.items()
+        }
+        data.data[var] = values.map(pooling_map, na_action="ignore").astype(
+            pd.CategoricalDtype(categories=new_categories, ordered=True)
+        )
+        data.meta.loc[lambda x: x["name"].eq(var), "labels"] = repr(new_labels)
+        category_maps[var] = pooling_map
+
+    # Remove categorical variables with fewer than two supported observed categories
+    unsupported_vars: list[str] = []
+    for var in categorical_vars:
+        values = data.data[var]
+        counts = values.value_counts(sort=False)
+        weighted_counts = sample_weight.groupby(values, observed=False).sum()
+        observed_categories = [category for category in values.cat.categories if counts[category] > 0]
+        is_supported = len(observed_categories) >= 2 and all(
+            counts[category] >= min_count and weighted_counts[category] >= min_weighted_count
+            for category in observed_categories
+        )
+        if not is_supported:
+            unsupported_vars.append(var)
+
+    unsupported_vars_set = set(unsupported_vars)
+    category_mapping_rows = [
+        {
+            "variable": var,
+            "original_category": original_category,
+            "pooled_category": pd.NA if var in unsupported_vars_set else pooled_category,
+        }
+        for var, category_map in category_maps.items()
+        for original_category, pooled_category in category_map.items()
+    ]
+    category_mapping = pd.DataFrame(category_mapping_rows, columns=["variable", "original_category", "pooled_category"])
+    return remove_variables(data, unsupported_vars), category_mapping

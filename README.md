@@ -29,8 +29,9 @@ We want to answer the question:
 
 <br><hr><details open><summary><h2 style="display:inline-block">💻 How to use</h2></summary>
 
-These instructions use Docker. A setup without Docker is also possible using Python, uv, R, and renv, but in our
-experience it does not reproduce the results exactly across machines.
+These instructions use Docker. If the results should be reproducible on different system architectures the ARM
+docker image should be used. The Compose configuration builds an ARM container. ARM emulation is substantially
+slower than native execution on an x86 computer.
 
 1. **Download the repository and add the data**
 
