@@ -25,11 +25,10 @@ data_valid$data <- as.data.frame(data_valid$data)
 
 
 
-# Diesen Part bracuuhen wir mit Preprocessing_Version_2 nicht mehr
-# fr12_nps1: leeres Level (Kategorie 5, keine Beobachtungen im discov-Split) entfernen,
-# damit polr das Modell überhaupt fitten kann
-# data_discov$data$fr12_nps1 <- droplevels(data_discov$data$fr12_nps1)
-# data_valid$data$fr12_nps1 <- droplevels(data_valid$data$fr12_nps1)
+# Leere Faktorlevels entfernen, bevor quickpred, make.method und
+# problem_vars berechnet werden (sonst zählt table() leere Levels als 0)
+data_discov$data <- droplevels(data_discov$data)
+data_valid$data  <- droplevels(data_valid$data)
 
 
 # ============================================================
@@ -51,10 +50,9 @@ pred_discov <- quickpred(
 # Wie viele davon hat quickpred rausgeworfen?
 n_dropped_discov <- sum(pred_full_discov == 1 & pred_discov == 0)
 
-n_total_discov
-n_dropped_discov
-n_dropped_discov / n_total_discov  # Anteil in Prozent
-
+cat(sprintf("discov: %d von %d Prädiktor-Beziehungen entfernt (%.1f %%)\n",
+            n_dropped_discov, n_total_discov,
+            100 * n_dropped_discov / n_total_discov))
 
 # ============================================================
 # Validation
@@ -74,9 +72,9 @@ pred_valid <- quickpred(
 # Wie viele davon hat quickpred rausgeworfen?
 n_dropped_valid <- sum(pred_full_valid == 1 & pred_valid == 0)
 
-n_total_valid
-n_dropped_valid
-n_dropped_valid / n_total_valid  # Anteil in Prozent
+cat(sprintf("valid: %d von %d Prädiktor-Beziehungen entfernt (%.1f %%)\n",
+            n_dropped_valid, n_total_valid,
+            100 * n_dropped_valid / n_total_valid))
 
 
 min_category_count <- 10
