@@ -404,3 +404,116 @@ save_plot(
   width = 7,
   height = 5
 )
+
+
+# ------------------------------------------------------------------------------
+# 8. Weighted prevalence by substance: discovery
+# ------------------------------------------------------------------------------
+ 
+stopifnot(
+  "data_discov does not expose the missingness table `na`" = !is.null(data_discov$na)
+)
+ 
+prevalence_spec <- list(
+  list(substance = "Alcohol (30 days)", variable = "vx210",      non_use = c("0", "1", "2")),
+  list(substance = "Tobacco (current)", variable = "typ2",       non_use = c("1", "2")),
+  list(substance = "Cannabis",          variable = "fr12_ha1",   non_use = "1"),
+  list(substance = "Amphetamines",      variable = "fr12_au1",   non_use = "1"),
+  list(substance = "Cocaine",           variable = "fr12_ko1",   non_use = "1"),
+  list(substance = "Ecstasy",           variable = "fr12_ec1",   non_use = "1"),
+  list(substance = "Other opioids",     variable = "fr12_ao1",   non_use = "1"),
+  list(substance = "LSD",               variable = "fr12_ls1",   non_use = "1"),
+  list(substance = "Mushrooms",         variable = "fr12_pi1",   non_use = "1"),
+  list(substance = "NPS",               variable = "fr12_nps1",  non_use = "1"),
+  list(substance = "Methamphetamine",   variable = "fr12_meth1", non_use = "1"),
+  list(substance = "Crack",             variable = "fr12_cr1",   non_use = "1"),
+  list(substance = "Heroin",            variable = "fr12_he1",   non_use = "1")
+)
+ 
+was_administered <- function(bundle, variable) {
+  variable %in% names(bundle$na) &&
+    any(as.character(bundle$na[[variable]]) == "observed", na.rm = TRUE)
+}
+ 
+weighted_prevalence <- function(bundle, variable, non_use) {
+  values <- as.character(bundle$data[[variable]])
+  weights <- bundle$data$wichtn
+  keep <- !is.na(values) & !is.na(weights)
+ 
+  sum(weights[keep] * !(values[keep] %in% non_use)) / sum(weights[keep]) * 100
+}
+ 
+retained_vars <- data_discov_reduced$meta[[get_var_col(data_discov_reduced$meta)]]
+ 
+status_levels <- c("Retained in the feature space", "Excluded (too rare)")
+ 
+colors_prevalence <- c(default_color, "grey65")
+names(colors_prevalence) <- status_levels
+ 
+prevalence_data <- bind_rows(
+  lapply(prevalence_spec, function(spec) {
+    if (!was_administered(data_discov, spec$variable)) {
+      return(NULL)
+    }
+ 
+    tibble(
+      substance = spec$substance,
+      variable = spec$variable,
+      prevalence = weighted_prevalence(data_discov, spec$variable, spec$non_use),
+      status = if (spec$variable %in% retained_vars) status_levels[1] else status_levels[2]
+    )
+  })
+) |>
+  mutate(
+    status = factor(status, levels = status_levels),
+    label = ifelse(
+      prevalence >= 1,
+      sprintf("%.1f%%", prevalence),
+      sprintf("%.2f%%", prevalence)
+    )
+  )
+ 
+print(prevalence_data)
+ 
+# With every substance retained, the legend would show a single entry and say
+# nothing, so it is only drawn when there is something to distinguish.
+show_status_legend <- n_distinct(prevalence_data$status) > 1
+ 
+# Points rather than bars: on a logarithmic axis the length of a bar is not
+# proportional to the value it encodes, so bars would overstate the differences
+# between the common substances and understate them between the rare ones.
+prevalence_plot <- prevalence_data |>
+  ggplot(aes(x = reorder(substance, prevalence), y = prevalence, colour = status)) +
+  geom_point(size = 3) +
+  geom_text(
+    aes(label = label),
+    hjust = -0.35,
+    size = 3,
+    family = font_name,
+    show.legend = FALSE
+  ) +
+  coord_flip() +
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0.01%", "0.1%", "1%", "10%", "100%"),
+    limits = c(min(prevalence_data$prevalence) / 1.8, 300)
+  ) +
+  scale_colour_manual(
+    values = colors_prevalence,
+    guide = if (show_status_legend) "legend" else "none"
+  ) +
+  labs(
+    title = "Weighted Prevalence by Substance: Discovery",
+    subtitle = "12-month prevalence for illicit drugs, 30-day for alcohol, current use for tobacco",
+    x = "",
+    y = "Weighted prevalence (logarithmic scale)",
+    colour = ""
+  ) +
+  theme_ggplot
+ 
+save_plot(
+  prevalence_plot,
+  "prevalence_by_substance_discovery.png",
+  width = 7,
+  height = 5
+)
