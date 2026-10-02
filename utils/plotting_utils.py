@@ -651,6 +651,44 @@ def make_plot_continuous_var_dist_by_cluster(
     )
 
 
+def make_plot_histogram_by_cluster(
+    series: ArrayLike,
+    labels: ArrayLike,
+    sample_weight: ArrayLike | None = None,
+    bins: int | ArrayLike = 30,
+    cluster_size_decimals: int = 0,
+) -> p9.ggplot:
+    """Plot within-cluster histogram proportions, with optional survey weights."""
+    series = pd.Series(series)
+    data = (
+        series.to_frame("var")
+        .pipe(lambda x: turn_cats_to_continuous(x, ["var"]) if x["var"].dtype == "category" else x)
+        .assign(
+            cluster=pd.Series(labels).astype("category"),
+            weight=1 if sample_weight is None else np.asarray(sample_weight),
+        )
+        .dropna(subset=["var", "cluster", "weight"])
+    )
+    data = data.loc[np.isfinite(data["var"])]
+    bin_edges = np.histogram_bin_edges(data["var"].to_numpy(dtype=float), bins=bins)
+    statistics = agg_with_overall(data, "cluster", n=("weight", "sum"), overall_label="all", observed=True)
+    decimals = 0 if sample_weight is None else cluster_size_decimals
+    cluster_names = {cluster: f"{cluster}  ({n:.{decimals}f})" for cluster, n in statistics["n"].items()}
+    data_ggplot = pd.concat([data, data.assign(cluster="all")], ignore_index=True).assign(
+        cluster=lambda x: pd.Categorical(x["cluster"], categories=statistics.index).rename_categories(cluster_names)
+    )
+
+    return (
+        p9.ggplot(data_ggplot)
+        + p9.aes(x="var", weight="weight", y=p9.after_stat("density * width"))
+        + p9.geom_histogram(breaks=bin_edges, fill="#595959", color="white")
+        + p9.facet_wrap("cluster")
+        + p9.labs(x=str(series.name), y="Proportion within cluster")
+        + p9.scale_y_continuous(labels=lambda values: [f"{value:.0%}" for value in values])
+        + theme_ggplot
+    )
+
+
 def make_plot_categorical_var_dist_by_cluster(
     series: ArrayLike,
     labels: ArrayLike,
