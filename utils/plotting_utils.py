@@ -572,6 +572,8 @@ def make_plot_continuous_var_dist_by_cluster(
         .pipe(lambda x: turn_cats_to_continuous(x, ["var"]) if x["var"].dtype == "category" else x)
         .assign(**{"cluster": pd.Series(labels).astype("category")})
         .pipe(lambda x: x if sample_weight is None else x.assign(**{"weight": sample_weight}))
+        # Personen ohne gültigen Wert zählen nicht mit – genau wie bei der ungewichteten Zählung
+        .pipe(lambda x: x if sample_weight is None else x.assign(weight=x["weight"].where(x["var"].notna(), 0)))    
     )
 
     # Get statistics of the variable for each cluster and overall
@@ -664,6 +666,8 @@ def make_plot_categorical_var_dist_by_cluster(
         series.to_frame("var")
         .assign(**{"cluster": pd.Series(labels).astype("category")})
         .pipe(lambda x: x if sample_weight is None else x.assign(**{"weight": sample_weight}))
+        # Personen ohne gültigen Wert zählen nicht mit – genau wie bei der ungewichteten Zählung
+        .pipe(lambda x: x if sample_weight is None else x.assign(weight=x["weight"].where(x["var"].notna(), 0)))
     )
 
     # Get statistics of the variable for each cluster and overall
