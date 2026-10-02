@@ -653,8 +653,9 @@ def make_plot_histogram_by_cluster(
     series: ArrayLike,
     labels: ArrayLike,
     sample_weight: ArrayLike | None = None,
-    bins: int | ArrayLike = 30,
+    bins: int | ArrayLike = 15,
     cluster_size_decimals: int = 0,
+    clusters: Iterable[Any] | None = None,
 ) -> p9.ggplot:
     """Plot within-cluster histogram proportions, with optional survey weights."""
     series = pd.Series(series)
@@ -668,18 +669,34 @@ def make_plot_histogram_by_cluster(
         .dropna(subset=["var", "cluster", "weight"])
     )
     data = data.loc[np.isfinite(data["var"])]
+    if data.empty:
+        return (
+            p9.ggplot()
+            + p9.annotate("text", x=0, y=0, label="No observed values")
+            + p9.labs(x=str(series.name))
+            + theme_ggplot
+            + p9.theme(axis_text=p9.element_blank(), axis_ticks=p9.element_blank(), panel_grid=p9.element_blank())
+        )
+
     bin_edges = np.histogram_bin_edges(data["var"].to_numpy(dtype=float), bins=bins)
     statistics = agg_with_overall(data, "cluster", n=("weight", "sum"), overall_label="all", observed=True)
     decimals = 0 if sample_weight is None else cluster_size_decimals
     cluster_names = {cluster: f"{cluster}  ({n:.{decimals}f})" for cluster, n in statistics["n"].items()}
-    data_ggplot = pd.concat([data, data.assign(cluster="all")], ignore_index=True).assign(
-        cluster=lambda x: pd.Categorical(x["cluster"], categories=statistics.index).rename_categories(cluster_names)
+    cluster_order = statistics.index.to_list()
+    if clusters is not None:
+        cluster_order = [cluster for cluster in clusters if cluster in statistics.index] + ["all"]
+    data_ggplot = (
+        pd.concat([data, data.assign(cluster="all")], ignore_index=True)
+        .loc[lambda x: x["cluster"].isin(cluster_order)]
+        .assign(
+            cluster=lambda x: pd.Categorical(x["cluster"], categories=cluster_order).rename_categories(cluster_names)
+        )
     )
 
     return (
         p9.ggplot(data_ggplot)
         + p9.aes(x="var", weight="weight", y=p9.after_stat("density * width"))
-        + p9.geom_histogram(breaks=bin_edges, fill="#595959", color="white")
+        + p9.geom_histogram(breaks=bin_edges, fill="#595959", color="white", size=0.1)
         + p9.facet_wrap("cluster")
         + p9.labs(x=str(series.name), y="Proportion within cluster")
         + p9.scale_y_continuous(labels=lambda values: [f"{value:.0%}" for value in values])
@@ -693,6 +710,7 @@ def make_plot_categorical_var_dist_by_cluster(
     sample_weight: ArrayLike | None = None,
     cluster_size_decimals: int = 0,
     value_labels: Mapping[Any, Any] | None = None,
+    clusters: Iterable[Any] | None = None,
 ) -> p9.ggplot:
     """Creates the plot of the distribution of a categorical variable in each cluster."""
     series = pd.Series(series)
@@ -736,11 +754,16 @@ def make_plot_categorical_var_dist_by_cluster(
         .assign(
             **{
                 "proportion": lambda x: x["n"].div(statistics.loc[x["cluster"], "n"].values),
-                "cluster": lambda x: x["cluster"].cat.rename_categories(
-                    lambda x: f"{x}  ({statistics.loc[x, 'n_str']})"
-                ),
             }
         )
+    )
+    if clusters is not None:
+        cluster_order = [cluster for cluster in clusters if cluster in statistics.index] + ["all"]
+        data_ggplot = data_ggplot.loc[lambda x: x["cluster"].isin(cluster_order)].assign(
+            cluster=lambda x: x["cluster"].cat.set_categories(cluster_order)
+        )
+    data_ggplot["cluster"] = data_ggplot["cluster"].cat.rename_categories(
+        lambda cluster: f"{cluster}  ({statistics.loc[cluster, 'n_str']})"
     )
 
     # Construct plot
