@@ -665,6 +665,7 @@ def make_plot_histogram_by_cluster(
         series.to_frame("var")
         .pipe(lambda x: turn_cats_to_continuous(x, ["var"]) if x["var"].dtype == "category" else x)
         .assign(
+            var=lambda x: pd.to_numeric(x["var"]),
             cluster=pd.Series(labels).astype("category"),
             weight=1 if sample_weight is None else np.asarray(sample_weight),
         )
