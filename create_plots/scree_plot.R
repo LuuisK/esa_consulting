@@ -20,6 +20,7 @@ n_comp <- 15   # dimensions used for clustering (dimensionality_reduction.R)
 max_dim <- 30  # dimensions shown in the plots
 
 default_colors <- theme_ggplot$palette.colour.discrete
+colors_year <- c("2018" = "#00883A", "2021" = "#F18700")
 
 # ------------------------------------------------------------------------------
 # Helper functions
@@ -89,7 +90,8 @@ scree_plot <- explained_var |>
     fill = "Year",
     colour = "Year"
   ) +
-  theme_ggplot
+   theme_ggplot +
+  theme(legend.position = "bottom")
 
 save_plot(
   scree_plot,

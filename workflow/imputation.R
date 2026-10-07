@@ -1,6 +1,6 @@
-#' Notebook for imputation
-#' Run notebooks in the following order: preprocessing.ipynb -> imputation.R ->
-#' dimensionality_reduction.R -> gmm_clustering.ipynb
+# Notebook for imputation
+# Run notebooks in the following order: preprocessing.ipynb -> imputation.R ->
+# dimensionality_reduction.R -> gmm_clustering.ipynb
 
 
 # Load required packages
@@ -19,49 +19,49 @@ data_valid <- load_data_bundle(
   file.path("data/preprocessed/data_valid_reduced")
 )
 
-# Fix make.method bug
+# needed for make.method
 data_discov$data <- as.data.frame(data_discov$data)
 data_valid$data <- as.data.frame(data_valid$data)
 
 
 
-# Leere Faktorlevels entfernen, bevor quickpred, make.method und
-# problem_vars berechnet werden (sonst zählt table() leere Levels als 0)
+# Drop empty factor levels before computing quickpred, make.method and
+# problem_vars (otherwise table() counts empty levels as 0)
 data_discov$data <- droplevels(data_discov$data)
 data_valid$data  <- droplevels(data_valid$data)
 
 
-# ============================================================
+##############################################################
 # Discovery
-# ============================================================
+##############################################################
 
-# Volle Standardmatrix, wie mice sie ohne quickpred verwenden würde
+# Full default matrix, as mice would use it without quickpred
 pred_full_discov <- make.predictorMatrix(data_discov$data)
 
-# Gesamtzahl der Prädiktor-Beziehungen (Zellen, exkl. Diagonale)
+# Total number of predictor relationships (cells, excl. diagonal)
 n_total_discov <- sum(pred_full_discov == 1)
 
-# Predictor Matrix via quickpred erzeugen, um Multikollinearität zu reduzieren
+# Create predictor matrix via quickpred to reduce multicollinearity
 pred_discov <- quickpred(
   data_discov$data,
   mincor = 0.1
 )
 
-# Wie viele davon hat quickpred rausgeworfen?
+# How many of them did quickpred drop?
 n_dropped_discov <- sum(pred_full_discov == 1 & pred_discov == 0)
 
 cat(sprintf("discov: %d von %d Prädiktor-Beziehungen entfernt (%.1f %%)\n",
             n_dropped_discov, n_total_discov,
             100 * n_dropped_discov / n_total_discov))
 
-# ============================================================
+##############################################################
 # Validation
-# ============================================================
+##############################################################
 
-# Volle Standardmatrix für Validation, separat von der discov-Matrix
+# Full default matrix for validation, separate from the discov matrix
 pred_full_valid <- make.predictorMatrix(data_valid$data)
 
-# Gesamtzahl der Prädiktor-Beziehungen (Zellen, exkl. Diagonale)
+# Total number of predictor relationships (cells, excl. diagonal)
 n_total_valid <- sum(pred_full_valid == 1)
 
 pred_valid <- quickpred(
@@ -69,7 +69,7 @@ pred_valid <- quickpred(
   mincor = 0.1
 )
 
-# Wie viele davon hat quickpred rausgeworfen?
+# How many of them did quickpred drop?
 n_dropped_valid <- sum(pred_full_valid == 1 & pred_valid == 0)
 
 cat(sprintf("valid: %d von %d Prädiktor-Beziehungen entfernt (%.1f %%)\n",
@@ -84,8 +84,8 @@ factor_vars_discov <- data_discov$data |>
   select(where(is.factor)) |>
   names()
 
-# problem_vars speichert alle kategorialen Variablen, bei denen
-# mindestens eine Kategorie weniger als 10 Beobachtungen hat.
+# problem_vars stores all categorical variables in which
+# at least one category has fewer than 10 observations.
 problem_vars_discov <- factor_vars_discov[
   sapply(factor_vars_discov, function(v) {
     any(table(data_discov$data[[v]]) < min_category_count)
@@ -116,10 +116,6 @@ meth_valid <- make.method(
   defaultMethod = c("pmm", "polyreg", "polyreg", "polr")
 )
 meth_valid[problem_vars_valid] <- "cart"
-
-# Zur Kontrolle, welche Variablen auf cart umgestellt wurden:
-# problem_vars_discov
-# problem_vars_valid
 
 
 # Set outputs folder
@@ -233,12 +229,12 @@ data.frame(
   )
 )
 
+
+################################################################
+# MICE convergence diagnostics
+################################################################
 #
-# # ============================================================
-# # MICE convergence diagnostics
-# # ============================================================
-#
-# # ---- Discovery data ----
+# Discovery data
 #
 # imp_diag_discov <- do_mice(
 #   data_discov$data,
@@ -261,7 +257,7 @@ data.frame(
 # print(conv_discov)
 #
 #
-# # ---- Validation data ----
+# Validation data
 #
 # imp_diag_valid <- do_mice(
 #   data_valid$data,
@@ -293,22 +289,22 @@ data.frame(
 #
 #
 #
-# # Häufigste Event-Typen (out-Feld) bei discov
+# Most frequent event types (out field) in discov
 # sort(
 #   table(imp_diag_discov$loggedEvents$out),
 #   decreasing = TRUE
 # )[1:20]
 #
-# # Welche Variablen (dep) am häufigsten betroffen sind
+# Which variables (dep) are affected most often
 # sort(
 #   table(imp_diag_discov$loggedEvents$dep),
 #   decreasing = TRUE
 # )[1:20]
 #
-# # Welche Methode am häufigsten betroffen ist
+# Which method is affected most often
 # table(imp_diag_discov$loggedEvents$meth)
 #
-# # Kombiniert: Variable x Methode x Ereignistyp, häufigste zuerst
+# Combined: variable x method x event type, most frequent first
 # imp_diag_discov$loggedEvents |>
 #   dplyr::count(dep, meth, out, sort = TRUE) |>
 #   head(30)
@@ -322,7 +318,7 @@ data.frame(
 # table(data_discov$data$fr12_nps1)
 #
 #
-# # Systematisch prüfen: welche Variablen haben am Ende (letzte Iteration) einen psrf über 1.2?
+# Systematic check: which variables have a PSRF above 1.2 at the end (last iteration)?
 #
 # last_it <- max(conv_discov$.it, na.rm = TRUE)
 #
@@ -332,7 +328,7 @@ data.frame(
 #
 # print(problem_convergence_discov)
 #
-# # Gleiches für den Validation-Datensatz
+# same for Validation-Dataset
 # problem_convergence_valid <- conv_valid |>
 #   dplyr::filter(.it == last_it, !is.na(psrf), psrf > 1.2) |>
 #   dplyr::arrange(dplyr::desc(psrf))

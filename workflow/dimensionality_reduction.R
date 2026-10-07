@@ -20,7 +20,7 @@ data_valid <- load_data_bundle(file.path("data/imputed/data_valid_imputed"))
 outputs_folder <- "data/dim_red"
 
 # Set number of MFA components
-n_comp <- 10
+n_comp <- 15
 
 
 # Function for MFA
