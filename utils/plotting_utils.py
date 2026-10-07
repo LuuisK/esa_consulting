@@ -153,8 +153,8 @@ def make_plot_corr_assoc_matrix(data: pd.DataFrame) -> p9.ggplot:
     vars_ordered = [*continuous_vars, *categorical_vars]
 
     # Pivot matrices
-    corr_assocs = corr_assoc_matrix.stack(future_stack=True).rename("corr_assoc")
-    p_values = p_value_matrix.stack(future_stack=True).rename("p_value")
+    corr_assocs = corr_assoc_matrix.stack(future_stack=True).rename("corr_assoc")  # type: ignore
+    p_values = p_value_matrix.stack(future_stack=True).rename("p_value")  # type: ignore
 
     # Create dataset
     def _get_type(values):
@@ -253,7 +253,7 @@ def make_plot_cv(cv_model: GridSearchCV, by: str | None = None, group: str | Non
             "mean_score": cv_model.cv_results_["mean_test_score"],
         }
     )
-    data_best = data_ggplot[lambda x: x["is_best"]]
+    data_best = data_ggplot.loc[lambda x: x["is_best"]]
 
     plot_cv = (
         p9.ggplot(data_ggplot)
@@ -571,9 +571,13 @@ def make_plot_continuous_var_dist_by_cluster(
         .to_frame(name="var")
         .pipe(lambda x: turn_cats_to_continuous(x, ["var"]) if x["var"].dtype == "category" else x)
         .assign(**{"cluster": pd.Series(labels).astype("category")})
-        .pipe(lambda x: x if sample_weight is None else x.assign(**{"weight": sample_weight}))
-        # Personen ohne gültigen Wert zählen nicht mit – genau wie bei der ungewichteten Zählung
-        .pipe(lambda x: x if sample_weight is None else x.assign(weight=x["weight"].where(x["var"].notna(), 0)))    
+        .pipe(
+            lambda x: (
+                x
+                if sample_weight is None
+                else x.assign(**{"weight": pd.Series(sample_weight, index=x.index).where(x["var"].notna(), 0)})
+            )
+        )
     )
 
     # Get statistics of the variable for each cluster and overall
