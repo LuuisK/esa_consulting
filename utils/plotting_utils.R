@@ -57,7 +57,7 @@ theme_ggplot <- theme_bw(base_family = font_name) +
         text = element_text(color = "black"),
         axis.title = element_text(color = "black"),
         axis.text = element_text(color = "black"),
-        plot.title = element_text(color = "black", face = "bold"),
+        plot.title = element_text(color = "black", size = 12, face = "plain"),
         legend.title = element_text(color = "black"),
         legend.text = element_text(color = "black"),
         strip.text = element_text(color = "black")
