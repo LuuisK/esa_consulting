@@ -10,7 +10,7 @@ suppressPackageStartupMessages({
 })
 
 source(file.path("utils/saving_utils.R"))
-source(file.path("utils/mfa_utils.R"))
+source(file.path("utils/dimensionality_reduction_utils.R"))
 
 
 #' Parse command line args n_imputations, seed, dimensions, imputation_dir, output_dir

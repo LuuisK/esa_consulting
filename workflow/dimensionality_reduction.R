@@ -8,7 +8,7 @@ library(checkmate) # assertions
 library(dplyr) # data-frame methods
 library(FactoMineR) # MFA
 
-source(file.path("utils/mfa_utils.R"))
+source(file.path("utils/dimensionality_reduction_utils.R"))
 source(file.path("utils/saving_utils.R"))
 
 
