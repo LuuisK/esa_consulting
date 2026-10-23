@@ -127,7 +127,7 @@ def save_plot(plot: p9.ggplot | Compose, save_path: str | Path, **kwargs) -> Non
     Saves the passed data with a given file name and prints a message.
     """
     save_path = Path(save_path)
-    ext = save_path.suffix
+    ext = save_path.suffix.lower()
 
     # Save in PNG format and print message
     if ext != ".png":

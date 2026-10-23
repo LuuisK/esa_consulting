@@ -4,21 +4,22 @@ from __future__ import annotations
 
 import functools
 import math
+from math import log
 
 import numpy as np
 import pandas as pd
 import validclust
 from numpy.typing import ArrayLike
+from scipy import sparse as sp
 from scipy.sparse import issparse
 from scipy.stats import chi2_contingency, entropy
-from sklearn.metrics import mutual_info_score
 from sklearn.metrics.cluster._supervised import _generalized_average, check_clusterings
 from sklearn.metrics.cluster._unsupervised import check_number_of_labels
 from sklearn.metrics.pairwise import pairwise_distances, pairwise_distances_chunked
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import _safe_indexing, check_X_y
 from sklearn.utils._array_api import _atol_for_type
-from sklearn.utils.validation import _check_sample_weight
+from sklearn.utils.validation import _check_sample_weight, check_array
 
 from utils.misc_utils import contingency_matrix
 
@@ -216,6 +217,46 @@ def davies_bouldin_score(X, labels, sample_weight: ArrayLike | None = None):
     combined_intra_dists = intra_dists[:, None] + intra_dists
     scores = np.max(combined_intra_dists / centroid_distances, axis=1)
     return np.mean(scores)
+
+
+# Copied from sklearn and modified to enable sample weights
+def mutual_info_score(labels_true, labels_pred, *, contingency=None):
+    """Mutual Information between two clusterings."""
+    if contingency is None:
+        labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
+        contingency = contingency_matrix(labels_true, labels_pred, sparse=True)
+    else:
+        contingency = check_array(
+            contingency,
+            accept_sparse=["csr", "csc", "coo"],
+            dtype=[float, np.float32, np.float64],
+        )
+
+    if isinstance(contingency, np.ndarray):
+        # For an array
+        nzx, nzy = np.nonzero(contingency)
+        nz_val = contingency[nzx, nzy]
+    else:
+        # For a sparse matrix
+        nzx, nzy, nz_val = sp.find(contingency)
+
+    contingency_sum = contingency.sum()
+    pi = np.ravel(contingency.sum(axis=1))
+    pj = np.ravel(contingency.sum(axis=0))
+
+    # Since MI <= min(H(X), H(Y)), any labelling with zero entropy, i.e. containing a
+    # single cluster, implies MI = 0
+    if pi.size == 1 or pj.size == 1:
+        return 0.0
+
+    log_contingency_nm = np.log(nz_val)
+    contingency_nm = nz_val / contingency_sum
+    # Don't need to calculate the full outer product, just for non-zeroes
+    outer = pi.take(nzx).astype(np.float64, copy=False) * pj.take(nzy).astype(np.float64, copy=False)
+    log_outer = -np.log(outer) + log(pi.sum()) + log(pj.sum())
+    mi = contingency_nm * (log_contingency_nm - log(contingency_sum)) + contingency_nm * log_outer
+    mi = np.where(np.abs(mi) < np.finfo(mi.dtype).eps, 0.0, mi)
+    return np.clip(mi.sum(), 0.0, None)
 
 
 # Copied from sklearn and modified to enable sample weights

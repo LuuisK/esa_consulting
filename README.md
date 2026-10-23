@@ -109,9 +109,7 @@ slower than native execution on an x86 computer.
     1. [`workflow/preprocessing.ipynb`](workflow/preprocessing.ipynb) — nearly instant
     2. [`workflow/imputation.R`](workflow/imputation.R) — about 8 min
     3. [`workflow/dimensionality_reduction.R`](workflow/dimensionality_reduction.R) — a few seconds
-    4. One or more clustering notebooks — about 100 min each:
-       - [`workflow/gmm_clustering.ipynb`](workflow/gmm_clustering.ipynb)
-       - [`workflow/kmeans_clustering.ipynb`](workflow/kmeans_clustering.ipynb)
+    4. [`workflow/gmm_clustering.ipynb`](workflow/gmm_clustering.ipynb) — about 100 min
     5. Optional figures and diagnostics in [`create_plots/`](create_plots)
 
 5. **Explore the results**
